@@ -1,791 +1,709 @@
-// ============================================================
-// AI Pathfinder Arena - BFS & Dijkstra Visualizer
-// 20×20 Grid, Interactive Obstacles, Step-by-Step Animation
-// ============================================================
+import java.util.*;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.PriorityQueue;
+  // ----- Grid Settings -----
+  final int COLS = 40;
+  final int ROWS = 30;
+  final int CELL_SIZE = 20;
+  int gridOffsetX, gridOffsetY;
+  // Grid cell states
+  final int EMPTY= 0;
+  final int OBSTACLE = 1;
+  final int START= 2;
+  final int GOAL= 3;
+  int[][] grid;
+  
+  // List of agents (start points)
+  ArrayList<PVector> agents = new ArrayList<PVector>();
+  // List of goal points
+  ArrayList<PVector> goals  = new ArrayList<PVector>();
+  
+  // ----- Algorithm Related -----
+  enum Algorithm { BFS, DIJKSTRA, ASTAR }
+  Algorithm currentAlgo = Algorithm.ASTAR;
+  
+  // Speed control: frames per expansion step
+  int speed = 5;                // 1-20, higher = faster (steps per frame)
+  boolean running = false;
+  boolean paused = false;
+  boolean stepMode = false;     // Single-step mode
+  
+  // Search process data
+  ArrayList<Node> openList = new ArrayList<Node>();
+  ArrayList<Node> closedList = new ArrayList<Node>();
+  ArrayList<Node> finalPath = new ArrayList<Node>();
+  Node startNode, goalNode;
+  int visitedCount = 0;
+  int pathLength = 0;
+  int cpuCycles = 0;
+  boolean pathFound = false;
+  boolean algorithmFinished = false;
+  
+  // Comparison mode (simplified: left/right split screen for two algorithms)
+  boolean compareMode = false;
+  Algorithm algoLeft = Algorithm.ASTAR;
+  Algorithm algoRight = Algorithm.BFS;
+  
+  // ----- UI Controls -----
+  enum Tool { SELECT, ADD_AGENT, ADD_GOAL, DRAW_OBSTACLE }
+  Tool currentTool = Tool.SELECT;
+  
+  // Button area (control panel on the right)
+  int panelX, panelWidth;
+  
+  // Custom buttons (simple self-drawn)
+  ArrayList<UIButton> buttons = new ArrayList<UIButton>();
+  
+  // ----- Inner Class: Grid Node (for pathfinding) -----
+  class Node implements Comparable<Node> {
+    int x, y;
+    int g, h;
+    Node parent;
+    
+    Node(int x, int y) {
+      this.x = x;
+      this.y = y;
+      g = Integer.MAX_VALUE;
+      h = 0;
+      parent = null;
+    }
+    
+    int f() { return g + h; }
+    
+    public int compareTo(Node other) {
+      if (this.f() < other.f()) return -1;
+      if (this.f() > other.f()) return 1;
+      return 0;
+    }
 
-// ---------- Grid Constants ----------
-final int GRID_SIZE = 20;          // 20x20 grid
-final int CELL_SIZE = 38;          // pixel size of each cell (2px reserved for grid lines)
-final int GRID_ORIGIN_X = 10;      // top-left corner X of the grid
-final int GRID_ORIGIN_Y = 10;      // top-left corner Y of the grid
-final int GRID_WIDTH = GRID_SIZE * CELL_SIZE;   // 760px
-final int GRID_HEIGHT = GRID_SIZE * CELL_SIZE;  // 760px
+    public boolean equals(Object o) {
+      if (!(o instanceof Node)) return false;
+      Node n = (Node) o;
+      return this.x == n.x && this.y == n.y;
+    }
 
-// ---------- Cell State Constants ----------
-final int EMPTY = 0;
-final int OBSTACLE = 1;
-final int START = 2;
-final int END = 3;
-final int EXPLORED = 4;
-final int FRONTIER = 5;
-final int PATH = 6;
-
-// ---------- Color Definitions ----------
-final color COLOR_EMPTY = #FFFFFF;
-final color COLOR_OBSTACLE = #3C3C3C;
-final color COLOR_START = #4CAF50;
-final color COLOR_END = #F44336;
-final color COLOR_EXPLORED = #BBDEFB;
-final color COLOR_FRONTIER = #FFB74D;
-final color COLOR_PATH = #FFEB3B;
-final color COLOR_HOVER = #E0E0E0;
-final color COLOR_GRID_LINE = #BDBDBD;
-final color COLOR_BG = #FAFAFA;
-final color COLOR_UI_BG = #ECEFF1;
-final color COLOR_BUTTON = #607D8B;
-final color COLOR_BUTTON_HOVER = #78909C;
-final color COLOR_BUTTON_ACTIVE = #FF7043;
-final color COLOR_SLIDER_TRACK = #90A4AE;
-final color COLOR_SLIDER_THUMB = #37474F;
-final color COLOR_TEXT = #263238;
-
-// ---------- Grid Data ----------
-int[][] grid = new int[GRID_SIZE][GRID_SIZE];
-int startRow = 0, startCol = 0;                // mutable start point
-int endRow = GRID_SIZE - 1, endCol = GRID_SIZE - 1;  // mutable end point
-
-// ---------- Mouse Hover ----------
-int hoverRow = -1, hoverCol = -1;
-
-// ---------- Search State ----------
-boolean searchRunning = false;
-boolean searchComplete = false;
-boolean pathFound = false;
-String currentAlgorithm = "BFS";   // "BFS" or "Dijkstra"
-
-// BFS queue
-ArrayDeque<int[]> bfsQueue;
-// Dijkstra priority queue (row, col, distance)
-PriorityQueue<int[]> dijkstraPQ;
-
-boolean[][] visited;
-int[][] parentR, parentC;
-int[][] distance;                  // used for Dijkstra
-ArrayList<int[]> currentFrontier;  // list of current frontier nodes
-ArrayList<int[]> exploredList;     // list of explored nodes
-ArrayList<int[]> finalPath;        // final path
-
-int stepsPerFrame = 5;             // number of steps per frame (5~10)
-int searchStepCount = 0;           // step counter executed
-
-// ---------- UI Elements ----------
-// Buttons
-final int BUTTON_SEARCH_X = 20;
-final int BUTTON_Y = GRID_ORIGIN_Y + GRID_HEIGHT + 16;
-final int BUTTON_WIDTH = 110;
-final int BUTTON_HEIGHT = 32;
-
-final int BUTTON_ALGO_X = 145;
-final int BUTTON_ALGO_WIDTH = 100;
-
-final int BUTTON_CLEAR_X = 260;
-final int BUTTON_CLEAR_WIDTH = 80;
-
-// Speed Slider
-final int SLIDER_X = 420;
-final int SLIDER_Y = BUTTON_Y + 8;
-final int SLIDER_WIDTH = 180;
-final int SLIDER_MIN = 5;
-final int SLIDER_MAX = 10;
-float sliderHandleX;
-
-// Window total dimensions
-final int WINDOW_WIDTH = 800;
-final int WINDOW_HEIGHT = GRID_ORIGIN_Y + GRID_HEIGHT + 60;
-
-// ---------- Initialization ----------
-void setup() {
-  size(800, 830);
-  frameRate(60);
-  textFont(createFont("Arial", 13));
-
-  // Initialize grid
-  initGrid();
-
-  // Initialize slider position
-  sliderHandleX = SLIDER_X + map(stepsPerFrame, SLIDER_MIN, SLIDER_MAX, 0, SLIDER_WIDTH);
-
-  // ---------- 非动画 BFS：在控制台打印路径 ----------
-  println("========================================");
-  println("  非动画 BFS - 控制台路径输出");
-  println("========================================");
-  runFullBFSConsole();
-  println("========================================");
-  println("  准备好进行分步动画搜索。");
-  println("  左键放置/移除障碍物 | 右键清除单个障碍物");
-  println("  Shift+左键 设置新起点 | Ctrl+左键 设置新终点");
-  println("  点击 'Search' 开始动画搜索");
-  println("========================================\n");
-}
-
-// ---------- Initialize Grid ----------
-void initGrid() {
-  for (int r = 0; r < GRID_SIZE; r++) {
-    for (int c = 0; c < GRID_SIZE; c++) {
-      grid[r][c] = EMPTY;
+    public int hashCode() {
+      return x * 31 + y;
     }
   }
-  grid[startRow][startCol] = START;
-  grid[endRow][endCol] = END;
-  resetSearchState();
-}
+  
+  // ----- Processing Settings -----
+  public void settings() {
+    size(1024, 700);
+  }
 
-// ---------- Reset Search State (keep obstacles and start/end) ----------
-void resetSearchState() {
-  searchRunning = false;
-  searchComplete = false;
-  pathFound = false;
-  searchStepCount = 0;
-  bfsQueue = null;
-  dijkstraPQ = null;
-  visited = new boolean[GRID_SIZE][GRID_SIZE];
-  parentR = new int[GRID_SIZE][GRID_SIZE];
-  parentC = new int[GRID_SIZE][GRID_SIZE];
-  distance = new int[GRID_SIZE][GRID_SIZE];
-  currentFrontier = new ArrayList<int[]>();
-  exploredList = new ArrayList<int[]>();
-  finalPath = new ArrayList<int[]>();
-
-  // Clear search markers (keep obstacles, start, end)
-  for (int r = 0; r < GRID_SIZE; r++) {
-    for (int c = 0; c < GRID_SIZE; c++) {
-      if (grid[r][c] == EXPLORED || grid[r][c] == FRONTIER || grid[r][c] == PATH) {
-        grid[r][c] = EMPTY;
+  public void setup() {
+    surface.setTitle("AI Pathfinding Arena");
+    textFont(createFont("Arial", 14));
+    
+    int arenaWidth = COLS * CELL_SIZE;
+    int arenaHeight = ROWS * CELL_SIZE;
+    gridOffsetX = 20;
+    gridOffsetY = 20;
+    panelX = gridOffsetX + arenaWidth + 20;
+    panelWidth = width - panelX - 10;
+    
+    // Initialize grid
+    grid = new int[ROWS][COLS];
+    resetGrid();
+    
+    // Place default one start and one goal
+    agents.add(new PVector(5, 5));
+    goals.add(new PVector(COLS-6, ROWS-6));
+    updateGridFromAgentsAndGoals();
+    
+    // Create UI buttons
+    createButtons();
+  }
+  
+  // Reset grid (clear obstacles, keep start/goal markers)
+void resetGrid() {
+    for (int r = 0; r < ROWS; r++) {
+      Arrays.fill(grid[r], EMPTY);
+    }
+  }  
+ // Update grid START and GOAL markers based on agents/goals lists
+void updateGridFromAgentsAndGoals() {
+    // First clear old start/goal markers
+    for (int r = 0; r < ROWS; r++) {
+      for (int c = 0; c < COLS; c++) {
+        if (grid[r][c] == START || grid[r][c] == GOAL) {
+          grid[r][c] = EMPTY;
+        }
+      }
+    }
+    // Mark starts
+    for (PVector a : agents) {
+      int cx = (int)a.x;
+      int cy = (int)a.y;
+      if (cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS) {
+        if (grid[cy][cx] == EMPTY) grid[cy][cx] = START;
+      }
+    }
+    // Mark goals
+    for (PVector g : goals) {
+      int cx = (int)g.x;
+      int cy = (int)g.y;
+      if (cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS) {
+        if (grid[cy][cx] == EMPTY) grid[cy][cx] = GOAL;
       }
     }
   }
-  grid[startRow][startCol] = START;
-  grid[endRow][endCol] = END;
-
-  // Initialize parent arrays
-  for (int r = 0; r < GRID_SIZE; r++) {
-    for (int c = 0; c < GRID_SIZE; c++) {
-      parentR[r][c] = -1;
-      parentC[r][c] = -1;
-      distance[r][c] = Integer.MAX_VALUE;
-    }
+  
+  // Create control panel buttons
+  void createButtons() {
+    buttons.clear();
+    int yBase = 60;
+    int btnH = 30;
+    int btnW = panelWidth - 20;
+    int x = panelX + 10;
+    
+    buttons.add(new UIButton(x, yBase, btnW, btnH, "Algo: A*",     "ALGO_ASTAR"));
+    buttons.add(new UIButton(x, yBase+40, btnW, btnH, "Next Algo", "ALGO_NEXT"));
+    
+    buttons.add(new UIButton(x, yBase+90, btnW/2-2, btnH, "-Speed", "SPEED_DOWN"));
+    buttons.add(new UIButton(x+btnW/2+2, yBase+90, btnW/2-2, btnH, "+Speed", "SPEED_UP"));
+    
+    buttons.add(new UIButton(x, yBase+140, btnW, btnH, "Compare: OFF", "TOGGLE_COMPARE"));
+    
+    buttons.add(new UIButton(x, yBase+190, btnW, btnH, "Tool: Select", "TOOL_SELECT"));
+    buttons.add(new UIButton(x, yBase+230, btnW, btnH, "Tool: Agent",  "TOOL_AGENT"));
+    buttons.add(new UIButton(x, yBase+270, btnW, btnH, "Tool: Goal",   "TOOL_GOAL"));
+    buttons.add(new UIButton(x, yBase+310, btnW, btnH, "Tool: Obstacle","TOOL_OBSTACLE"));
+    
+    buttons.add(new UIButton(x, yBase+370, btnW, btnH, "Start",   "RUN_START"));
+    buttons.add(new UIButton(x, yBase+410, btnW, btnH, "Pause",   "RUN_PAUSE"));
+    buttons.add(new UIButton(x, yBase+450, btnW, btnH, "Step",    "RUN_STEP"));
+    buttons.add(new UIButton(x, yBase+490, btnW, btnH, "Reset",   "RUN_RESET"));
+    buttons.add(new UIButton(x, yBase+530, btnW, btnH, "Clear All","RUN_CLEAR"));
   }
-}
-
-// ---------- Non-animated BFS: Full Run and Print to Console ----------
-void runFullBFSConsole() {
-  // Use local queue
-  ArrayDeque<int[]> q = new ArrayDeque<int[]>();
-  boolean[][] localVisited = new boolean[GRID_SIZE][GRID_SIZE];
-  int[][] localParentR = new int[GRID_SIZE][GRID_SIZE];
-  int[][] localParentC = new int[GRID_SIZE][GRID_SIZE];
-
-  for (int r = 0; r < GRID_SIZE; r++) {
-    for (int c = 0; c < GRID_SIZE; c++) {
-      localParentR[r][c] = -1;
-      localParentC[r][c] = -1;
-    }
-  }
-
-  // Check start and end points
-  if (grid[startRow][startCol] == OBSTACLE) {
-    println("[BFS] 起点被障碍物阻塞，无法搜索！");
-    return;
-  }
-  if (grid[endRow][endCol] == OBSTACLE) {
-    println("[BFS] 终点被障碍物阻塞，无法搜索！");
-    return;
-  }
-
-  localVisited[startRow][startCol] = true;
-  q.addLast(new int[]{startRow, startCol});
-  int nodesVisited = 0;
-
-  while (!q.isEmpty()) {
-    int[] cur = q.removeFirst();
-    int r = cur[0], c = cur[1];
-    nodesVisited++;
-
-    // Reached the end point
-    if (r == endRow && c == endCol) {
-      // Backtrack path
-      ArrayList<int[]> path = new ArrayList<int[]>();
-      int pr = r, pc = c;
-      while (pr != -1 && pc != -1) {
-        path.add(0, new int[]{pr, pc});
-        int tr = localParentR[pr][pc];
-        int tc = localParentC[pr][pc];
-        pr = tr;
-        pc = tc;
+  
+  // Update button labels
+  void updateButtonLabels() {
+    for (UIButton b : buttons) {
+      if (b.id.equals("ALGO_ASTAR")) {
+        b.label = "Algo: " + currentAlgo.toString();
+      } else if (b.id.equals("TOGGLE_COMPARE")) {
+        b.label = "Compare: " + (compareMode ? "ON" : "OFF");
+      } else if (b.id.equals("TOOL_SELECT")) {
+        b.label = "Tool: " + (currentTool == Tool.SELECT ? "*Select" : "Select");
+      } else if (b.id.equals("TOOL_AGENT")) {
+        b.label = "Tool: " + (currentTool == Tool.ADD_AGENT ? "*Agent" : "Agent");
+      } else if (b.id.equals("TOOL_GOAL")) {
+        b.label = "Tool: " + (currentTool == Tool.ADD_GOAL ? "*Goal" : "Goal");
+      } else if (b.id.equals("TOOL_OBSTACLE")) {
+        b.label = "Tool: " + (currentTool == Tool.DRAW_OBSTACLE ? "*Obstacle" : "Obstacle");
       }
-      println("[BFS] 找到路径！长度：" + (path.size() - 1) + " 步，访问节点数：" + nodesVisited);
-      print("路径: ");
-      for (int i = 0; i < path.size(); i++) {
-        int[] p = path.get(i);
-        print("(" + p[0] + "," + p[1] + ")");
-        if (i < path.size() - 1) print(" -> ");
-      }
-      println();
-      return;
     }
-
-    // Neighbors in four directions: up, down, left, right
-    int[][] dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-    for (int[] d : dirs) {
-      int nr = r + d[0], nc = c + d[1];
-      if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
-        if (!localVisited[nr][nc] && grid[nr][nc] != OBSTACLE) {
-          localVisited[nr][nc] = true;
-          localParentR[nr][nc] = r;
-          localParentC[nr][nc] = c;
-          q.addLast(new int[]{nr, nc});
+  }
+  
+  // ----- Main Draw Loop -----
+  public void draw() {
+    background(30);
+    
+    // Draw grid arena
+    drawArena();
+    
+    // Draw control panel
+    drawPanel();
+    
+    // Update algorithm animation
+    if (running && !paused && !algorithmFinished) {
+      for (int i = 0; i < speed; i++) {
+        if (!algorithmStep()) {
+          algorithmFinished = true;
+          break;
         }
       }
     }
   }
-  // Queue empty and end not reached
-  println("[BFS] 无法找到路径！访问节点数：" + nodesVisited);
-  println("  终点被障碍物包围或不可达。");
-}
-
-// ---------- Initialize Step-by-Step Search ----------
-void initStepSearch() {
-  resetSearchState();
-  searchRunning = true;
-  searchComplete = false;
-  pathFound = false;
-  searchStepCount = 0;
-
-  // Check start/end points
-  if (grid[startRow][startCol] == OBSTACLE || grid[endRow][endCol] == OBSTACLE) {
-    println("[动画搜索] 起点或终点被阻塞！");
-    searchRunning = false;
-    searchComplete = true;
-    pathFound = false;
-    return;
-  }
-
-  visited[startRow][startCol] = true;
-  distance[startRow][startCol] = 0;
-  parentR[startRow][startCol] = -1;
-  parentC[startRow][startCol] = -1;
-
-  if (currentAlgorithm.equals("BFS")) {
-    bfsQueue = new ArrayDeque<int[]>();
-    bfsQueue.addLast(new int[]{startRow, startCol});
-    dijkstraPQ = null;
-    println("[动画 BFS] 开始分步搜索...");
-  } else {
-    dijkstraPQ = new PriorityQueue<int[]>((a, b) -> Integer.compare(a[2], b[2]));
-    dijkstraPQ.add(new int[]{startRow, startCol, 0});
-    bfsQueue = null;
-    println("[动画 Dijkstra] 开始分步搜索...");
-  }
-
-  // Mark start as frontier
-  grid[startRow][startCol] = FRONTIER;
-  currentFrontier.clear();
-  currentFrontier.add(new int[]{startRow, startCol});
-  exploredList.clear();
-  finalPath.clear();
-}
-
-// ---------- Execute One Search Step (Process One Node) ----------
-// returns true if search is still in progress, false if completed
-boolean executeOneStep() {
-  if (searchComplete) return false;
-
-  int[] cur = null;
-  int curDist = 0;
-
-  // Take next node from queue
-  if (currentAlgorithm.equals("BFS")) {
-    if (bfsQueue == null || bfsQueue.isEmpty()) {
-      // Search completed but no path found
-      searchComplete = true;
-      pathFound = false;
-      println("[动画 BFS] 搜索完成，未找到路径。步数：" + searchStepCount);
-      return false;
-    }
-    cur = bfsQueue.removeFirst();
-    curDist = distance[cur[0]][cur[1]];
-  } else {
-    if (dijkstraPQ == null || dijkstraPQ.isEmpty()) {
-      searchComplete = true;
-      pathFound = false;
-      println("[动画 Dijkstra] 搜索完成，未找到路径。步数：" + searchStepCount);
-      return false;
-    }
-    int[] pqItem = dijkstraPQ.poll();
-    cur = new int[]{pqItem[0], pqItem[1]};
-    curDist = pqItem[2];
-  }
-
-  int r = cur[0], c = cur[1];
-
-  // Remove from frontier and mark as explored
-  grid[r][c] = EXPLORED;
-  exploredList.add(new int[]{r, c});
-  removeFromFrontier(r, c);
-
-  // Check if reached end point
-  if (r == endRow && c == endCol) {
-    searchComplete = true;
-    pathFound = true;
-    buildFinalPath();
-    println("[动画 " + currentAlgorithm + "] 找到路径！步数：" + searchStepCount +
-      "，路径长度：" + (finalPath.size() - 1));
-    return false;
-  }
-
-  // Expand neighbors
-  int[][] dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-  for (int[] d : dirs) {
-    int nr = r + d[0], nc = c + d[1];
-    if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
-      if (!visited[nr][nc] && grid[nr][nc] != OBSTACLE) {
-        visited[nr][nc] = true;
-        parentR[nr][nc] = r;
-        parentC[nr][nc] = c;
-        distance[nr][nc] = curDist + 1;
-        grid[nr][nc] = FRONTIER;
-        currentFrontier.add(new int[]{nr, nc});
-
-        if (currentAlgorithm.equals("BFS")) {
-          bfsQueue.addLast(new int[]{nr, nc});
-        } else {
-          dijkstraPQ.add(new int[]{nr, nc, distance[nr][nc]});
+  
+  // Draw grid and all visual elements
+  void drawArena() {
+    pushMatrix();
+    translate(gridOffsetX, gridOffsetY);
+    
+    // Grid background
+    for (int r = 0; r < ROWS; r++) {
+      for (int c = 0; c < COLS; c++) {
+        int x = c * CELL_SIZE;
+        int y = r * CELL_SIZE;
+        
+        // Fill color
+        switch (grid[r][c]) {
+          case OBSTACLE:
+            fill(80, 80, 80);
+            break;
+          case START:
+            fill(0, 150, 255);
+            break;
+          case GOAL:
+            fill(255, 200, 0);
+            break;
+          default:
+            fill(50, 50, 50);
         }
+        stroke(60);
+        rect(x, y, CELL_SIZE, CELL_SIZE);
       }
     }
-  }
-
-  searchStepCount++;
-  return true;
-}
-
-// ---------- Remove Node from Frontier List ----------
-void removeFromFrontier(int r, int c) {
-  for (int i = currentFrontier.size() - 1; i >= 0; i--) {
-    int[] f = currentFrontier.get(i);
-    if (f[0] == r && f[1] == c) {
-      currentFrontier.remove(i);
-      break;
+    
+    // Draw search visualization (open/closed/final path)
+    drawSearchVisuals();
+    
+    // Draw agent icons (starting points may be multiple, with numbers inside circles)
+    for (int i = 0; i < agents.size(); i++) {
+      PVector a = agents.get(i);
+      float cx = a.x * CELL_SIZE + CELL_SIZE/2;
+      float cy = a.y * CELL_SIZE + CELL_SIZE/2;
+      fill(0, 150, 255);
+      noStroke();
+      ellipse(cx, cy, CELL_SIZE*0.8, CELL_SIZE*0.8);
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(10);
+      text(str(i+1), cx, cy-1);
     }
-  }
-}
-
-// ---------- Build Final Path ----------
-void buildFinalPath() {
-  finalPath.clear();
-  int pr = endRow, pc = endCol;
-  while (pr != -1 && pc != -1) {
-    finalPath.add(0, new int[]{pr, pc});
-    if (pr == startRow && pc == startCol) break;
-    int tr = parentR[pr][pc];
-    int tc = parentC[pr][pc];
-    pr = tr;
-    pc = tc;
-  }
-  // Mark path on grid (do not overwrite start and end)
-  for (int i = 1; i < finalPath.size() - 1; i++) {
-    int[] p = finalPath.get(i);
-    grid[p[0]][p[1]] = PATH;
-  }
-}
-
-// ---------- Main Loop ----------
-void draw() {
-  background(COLOR_BG);
-
-  // Calculate mouse hover cell
-  updateHoverCell();
-
-  // Step-by-step search: execute stepsPerFrame steps per frame
-  if (searchRunning && !searchComplete) {
-    int stepsThisFrame = 0;
-    while (stepsThisFrame < stepsPerFrame && !searchComplete) {
-      boolean continued = executeOneStep();
-      if (!continued) break;
-      stepsThisFrame++;
+    
+    // Draw goal point icons
+    for (int i = 0; i < goals.size(); i++) {
+      PVector g = goals.get(i);
+      float cx = g.x * CELL_SIZE + CELL_SIZE/2;
+      float cy = g.y * CELL_SIZE + CELL_SIZE/2;
+      fill(255, 200, 0);
+      noStroke();
+      ellipse(cx, cy, CELL_SIZE*0.8, CELL_SIZE*0.8);
+      fill(0);
+      textAlign(CENTER, CENTER);
+      textSize(8);
+      text("G" + (i+1), cx, cy);
     }
+    
+    popMatrix();
   }
-
-  // Draw grid
-  drawGrid();
-
-  // Draw UI
-  drawUI();
-
-  // Draw mouse hover highlight (still visible during search but no interaction)
-  if (hoverRow >= 0 && hoverCol >= 0) {
-    pushStyle();
-    noFill();
-    strokeWeight(3);
-    // Change highlight color hint based on modifier key pressed
-    if (keyPressed && keyCode == SHIFT) {
-      stroke(#4CAF50);  // green hint for setting start
-    } else if (keyPressed && keyCode == CONTROL) {
-      stroke(#F44336);  // red hint for setting end
-    } else {
-      stroke(#FF9800);  // orange default
+  
+  // Draw explored nodes, frontier, and final path
+  void drawSearchVisuals() {
+    pushMatrix();
+    translate(gridOffsetX, gridOffsetY);
+    noStroke();
+    
+    // Explored nodes (closed list) with semi-transparent green squares
+    fill(0, 200, 0, 80);
+    for (Node n : closedList) {
+      rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE-2, CELL_SIZE-2);
     }
-    rect(GRID_ORIGIN_X + hoverCol * CELL_SIZE, GRID_ORIGIN_Y + hoverRow * CELL_SIZE,
-      CELL_SIZE, CELL_SIZE);
-    popStyle();
-  }
-}
-
-// ---------- Update Mouse Hover Cell ----------
-void updateHoverCell() {
-  int mx = mouseX - GRID_ORIGIN_X;
-  int my = mouseY - GRID_ORIGIN_Y;
-  if (mx >= 0 && mx < GRID_WIDTH && my >= 0 && my < GRID_HEIGHT) {
-    hoverCol = mx / CELL_SIZE;
-    hoverRow = my / CELL_SIZE;
-  } else {
-    hoverRow = -1;
-    hoverCol = -1;
-  }
-}
-
-// ---------- Draw Grid ----------
-void drawGrid() {
-  pushMatrix();
-  translate(GRID_ORIGIN_X, GRID_ORIGIN_Y);
-
-  // Draw cells
-  for (int r = 0; r < GRID_SIZE; r++) {
-    for (int c = 0; c < GRID_SIZE; c++) {
-      color fillColor;
-      switch (grid[r][c]) {
-        case OBSTACLE: fillColor = COLOR_OBSTACLE; break;
-        case START:    fillColor = COLOR_START; break;
-        case END:      fillColor = COLOR_END; break;
-        case EXPLORED: fillColor = COLOR_EXPLORED; break;
-        case FRONTIER: fillColor = COLOR_FRONTIER; break;
-        case PATH:     fillColor = COLOR_PATH; break;
-        default:       fillColor = COLOR_EMPTY; break;
+    
+    // Frontier (open list) with semi-transparent yellow
+    fill(255, 255, 0, 100);
+    for (Node n : openList) {
+      rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE-2, CELL_SIZE-2);
+    }
+    
+    // Final path with magenta thick line
+    if (pathFound && finalPath.size() > 1) {
+      stroke(255, 0, 255);
+      strokeWeight(3);
+      noFill();
+      beginShape();
+      for (Node n : finalPath) {
+        float cx = n.x * CELL_SIZE + CELL_SIZE/2;
+        float cy = n.y * CELL_SIZE + CELL_SIZE/2;
+        vertex(cx, cy);
       }
-
-      // Mouse hover highlight (semi-transparent overlay on cell, preserve original color)
-      if (r == hoverRow && c == hoverCol) {
-        fill(fillColor);
-        noStroke();
-        rect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-        pushStyle();
-        noStroke();
-        fill(255, 255, 255, 60);  // semi-transparent white highlight
-        rect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-        popStyle();
-      } else {
-        fill(fillColor);
-        stroke(COLOR_GRID_LINE);
-        strokeWeight(0.5);
-        rect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-      }
+      endShape();
+      strokeWeight(1);
+    }
+    
+    popMatrix();
+  }
+  
+  // Draw right control panel
+  void drawPanel() {
+    fill(40, 40, 40, 200);
+    noStroke();
+    rect(panelX, 0, panelWidth, height);
+    
+    fill(255);
+    textAlign(LEFT, TOP);
+    textSize(16);
+    text("Control Panel", panelX+10, 20);
+    
+    for (UIButton b : buttons) {
+      b.draw();
+    }
+    
+    // Display statistics
+    int statsY = 580;
+    textSize(12);
+    fill(200);
+    text("Statistics:", panelX+10, statsY);
+    text("Visited: " + visitedCount, panelX+10, statsY+20);
+    text("Path len: " + pathLength, panelX+10, statsY+40);
+    text("CPU cycles: " + cpuCycles, panelX+10, statsY+60);
+    
+    // Display grid coordinates (mouse position)
+    if (mouseX >= gridOffsetX && mouseX < gridOffsetX + COLS*CELL_SIZE &&
+        mouseY >= gridOffsetY && mouseY < gridOffsetY + ROWS*CELL_SIZE) {
+      int mx = (mouseX - gridOffsetX) / CELL_SIZE;
+      int my = (mouseY - gridOffsetY) / CELL_SIZE;
+      fill(150);
+      text("Grid: (" + mx + ", " + my + ")", panelX+10, statsY+90);
     }
   }
-
-  // Start marker "S"
-  fill(255);
-  textAlign(CENTER, CENTER);
-  textSize(14);
-  text("S", startCol * CELL_SIZE + CELL_SIZE / 2, startRow * CELL_SIZE + CELL_SIZE / 2);
-
-  // End marker "E"
-  fill(255);
-  text("E", endCol * CELL_SIZE + CELL_SIZE / 2, endRow * CELL_SIZE + CELL_SIZE / 2);
-
-  popMatrix();
-}
-
-// ---------- Draw UI ----------
-void drawUI() {
-  int uiY = GRID_ORIGIN_Y + GRID_HEIGHT;
-
-  // UI background
-  fill(COLOR_UI_BG);
-  noStroke();
-  rect(0, uiY, width, height - uiY);
-
-  // Divider line
-  stroke(#B0BEC5);
-  strokeWeight(1);
-  line(0, uiY, width, uiY);
-
-  // ---- Search Button ----
-  drawButton(BUTTON_SEARCH_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT,
-    searchRunning ? "Reset" : "Search",
-    isMouseOverButton(BUTTON_SEARCH_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT));
-
-  // ---- Algorithm Switch Button ----
-  drawButton(BUTTON_ALGO_X, BUTTON_Y, BUTTON_ALGO_WIDTH, BUTTON_HEIGHT,
-    currentAlgorithm,
-    isMouseOverButton(BUTTON_ALGO_X, BUTTON_Y, BUTTON_ALGO_WIDTH, BUTTON_HEIGHT));
-
-  // ---- Clear Button ----
-  drawButton(BUTTON_CLEAR_X, BUTTON_Y, BUTTON_CLEAR_WIDTH, BUTTON_HEIGHT,
-    "Clear",
-    isMouseOverButton(BUTTON_CLEAR_X, BUTTON_Y, BUTTON_CLEAR_WIDTH, BUTTON_HEIGHT));
-
-  // ---- Speed Slider ----
-  drawSlider();
-
-  // ---- Statistics ----
-  fill(COLOR_TEXT);
-  textAlign(LEFT, CENTER);
-  textSize(12);
-  String stats = "Explored: " + exploredList.size() +
-    " | Frontier: " + currentFrontier.size() +
-    " | Steps: " + searchStepCount;
-  if (pathFound) {
-    stats += " | Path len: " + (finalPath.size() - 1);
-  }
-  text(stats, SLIDER_X + SLIDER_WIDTH + 20, BUTTON_Y + BUTTON_HEIGHT / 2);
-}
-
-// ---------- Draw Button ----------
-void drawButton(int bx, int by, int bw, int bh, String label, boolean hovered) {
-  pushStyle();
-  rectMode(CORNER);
-  if (hovered) {
-    fill(COLOR_BUTTON_HOVER);
-  } else {
-    fill(COLOR_BUTTON);
-  }
-  stroke(#455A64);
-  strokeWeight(1);
-  rect(bx, by, bw, bh, 5);
-
-  fill(255);
-  textAlign(CENTER, CENTER);
-  textSize(12);
-  text(label, bx + bw / 2, by + bh / 2);
-  popStyle();
-}
-
-// ---------- Check if Mouse is Over Button ----------
-boolean isMouseOverButton(int bx, int by, int bw, int bh) {
-  return mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh;
-}
-
-// ---------- Draw Speed Slider ----------
-void drawSlider() {
-  pushStyle();
-  // Label
-  fill(COLOR_TEXT);
-  textAlign(LEFT, CENTER);
-  textSize(11);
-  text("Speed: " + stepsPerFrame + "/f", SLIDER_X - 70, SLIDER_Y + 8);
-
-  // Track
-  stroke(COLOR_SLIDER_TRACK);
-  strokeWeight(4);
-  line(SLIDER_X, SLIDER_Y + 8, SLIDER_X + SLIDER_WIDTH, SLIDER_Y + 8);
-
-  // Tick marks
-  for (int i = SLIDER_MIN; i <= SLIDER_MAX; i++) {
-    float tx = SLIDER_X + map(i, SLIDER_MIN, SLIDER_MAX, 0, SLIDER_WIDTH);
-    stroke(COLOR_SLIDER_TRACK);
-    strokeWeight(2);
-    line(tx, SLIDER_Y, tx, SLIDER_Y + 16);
-    fill(COLOR_TEXT);
-    textSize(9);
-    textAlign(CENTER, TOP);
-    text(str(i), tx, SLIDER_Y + 18);
-  }
-
-  // Handle
-  fill(COLOR_SLIDER_THUMB);
-  noStroke();
-  ellipse(sliderHandleX, SLIDER_Y + 8, 16, 16);
-
-  // Handle highlight ring
-  if (isMouseOverSlider()) {
-    noFill();
-    stroke(#FF9800);
-    strokeWeight(2);
-    ellipse(sliderHandleX, SLIDER_Y + 8, 20, 20);
-  }
-
-  popStyle();
-}
-
-// ---------- Check if Mouse is Over Slider Handle ----------
-boolean isMouseOverSlider() {
-  float d = dist(mouseX, mouseY, sliderHandleX, SLIDER_Y + 8);
-  return d < 12;
-}
-
-// ---------- Mouse Released Event (Handle All Interactions) ----------
-void mouseReleased() {
-  // Search Button
-  if (isMouseOverButton(BUTTON_SEARCH_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)) {
-    if (searchRunning) {
-      resetSearchState();
-      println("[UI] 搜索已重置。");
-    } else {
-      initStepSearch();
-    }
-    return;
-  }
-
-  // Algorithm switch button
-  if (isMouseOverButton(BUTTON_ALGO_X, BUTTON_Y, BUTTON_ALGO_WIDTH, BUTTON_HEIGHT)) {
-    if (!searchRunning) {
-      if (currentAlgorithm.equals("BFS")) {
-        currentAlgorithm = "Dijkstra";
-        println("[UI] 切换到 Dijkstra 算法。");
-      } else {
-        currentAlgorithm = "BFS";
-        println("[UI] 切换到 BFS 算法。");
-      }
-    }
-    return;
-  }
-
-  // Clear button
-  if (isMouseOverButton(BUTTON_CLEAR_X, BUTTON_Y, BUTTON_CLEAR_WIDTH, BUTTON_HEIGHT)) {
-    clearAll();
-    return;
-  }
-
-  // Grid interaction (only process when mouse is inside grid)
-  if (hoverRow >= 0 && hoverCol >= 0) {
-    // ---- Modify Start: Hold Shift + Left Click ----
-    if (mouseButton == LEFT && keyPressed && keyCode == SHIFT) {
-      moveStartTo(hoverRow, hoverCol);
-      return;
-    }
-    // ---- Modify End: Hold Ctrl + Left Click ----
-    if (mouseButton == LEFT && keyPressed && keyCode == CONTROL) {
-      moveEndTo(hoverRow, hoverCol);
-      return;
-    }
-    // ---- Normal Left Click: Place/Remove Obstacle ----
-    if (mouseButton == LEFT && !searchRunning) {
-      // Cannot modify start and end points
-      if ((hoverRow == startRow && hoverCol == startCol) ||
-          (hoverRow == endRow && hoverCol == endCol)) {
+  
+  // ----- Mouse Interaction -----
+  @Override
+  public void mousePressed() {
+    // Check if a control panel button is clicked
+    for (UIButton b : buttons) {
+      if (b.isOver(mouseX, mouseY)) {
+        handleButton(b.id);
         return;
       }
-      if (grid[hoverRow][hoverCol] == OBSTACLE) {
-        grid[hoverRow][hoverCol] = EMPTY;
-      } else if (grid[hoverRow][hoverCol] == EMPTY) {
-        grid[hoverRow][hoverCol] = OBSTACLE;
-      }
-      return;
     }
-    // ---- Right Click: Clear Single Obstacle ----
-    if (mouseButton == RIGHT && !searchRunning) {
-      if (grid[hoverRow][hoverCol] == OBSTACLE) {
-        grid[hoverRow][hoverCol] = EMPTY;
-      }
-      return;
-    }
-  }
-}
-
-// ---------- Move Start Point to New Position ----------
-void moveStartTo(int newRow, int newCol) {
-  if (newRow == endRow && newCol == endCol) {
-    println("[起点] 不能与终点重合！");
-    return;
-  }
-  // Clear old start point
-  grid[startRow][startCol] = EMPTY;
-  // If new position has obstacle, clear it
-  if (grid[newRow][newCol] == OBSTACLE) {
-    grid[newRow][newCol] = EMPTY;
-  }
-  startRow = newRow;
-  startCol = newCol;
-  grid[startRow][startCol] = START;
-  println("[起点] 移动到 (" + startRow + ", " + startCol + ")");
-  // Moving start/end invalidates search, reset search state
-  resetSearchState();
-}
-
-// ---------- Move End Point to New Position ----------
-void moveEndTo(int newRow, int newCol) {
-  if (newRow == startRow && newCol == startCol) {
-    println("[终点] 不能与起点重合！");
-    return;
-  }
-  // Clear old end point
-  grid[endRow][endCol] = EMPTY;
-  // If new position has obstacle, clear it
-  if (grid[newRow][newCol] == OBSTACLE) {
-    grid[newRow][newCol] = EMPTY;
-  }
-  endRow = newRow;
-  endCol = newCol;
-  grid[endRow][endCol] = END;
-  println("[终点] 移动到 (" + endRow + ", " + endCol + ")");
-  // Moving start/end invalidates search, reset search state
-  resetSearchState();
-}
-
-// ---------- Clear All Obstacles and Search State ----------
-void clearAll() {
-  for (int r = 0; r < GRID_SIZE; r++) {
-    for (int c = 0; c < GRID_SIZE; c++) {
-      if (grid[r][c] == OBSTACLE || grid[r][c] == EXPLORED ||
-        grid[r][c] == FRONTIER || grid[r][c] == PATH) {
-        grid[r][c] = EMPTY;
+    
+    // Otherwise treat as arena interaction
+    if (mouseX >= gridOffsetX && mouseX < gridOffsetX + COLS*CELL_SIZE &&
+        mouseY >= gridOffsetY && mouseY < gridOffsetY + ROWS*CELL_SIZE) {
+      int cx = (mouseX - gridOffsetX) / CELL_SIZE;
+      int cy = (mouseY - gridOffsetY) / CELL_SIZE;
+      
+      switch (currentTool) {
+        case SELECT:
+          // Can select and drag elements (simplified: currently only supports deleting obstacles with right-click)
+          // Here implement right-click to delete obstacle, left-click drag can be added later
+          if (mouseButton == RIGHT) {
+            if (grid[cy][cx] == OBSTACLE) {
+              grid[cy][cx] = EMPTY;
+            } else if (grid[cy][cx] == START) {
+              removeAgentAt(cx, cy);
+            } else if (grid[cy][cx] == GOAL) {
+              removeGoalAt(cx, cy);
+            }
+          }
+          break;
+        case ADD_AGENT:
+          if (grid[cy][cx] == EMPTY) {
+            agents.add(new PVector(cx, cy));
+            grid[cy][cx] = START;
+          }
+          break;
+        case ADD_GOAL:
+          if (grid[cy][cx] == EMPTY) {
+            goals.add(new PVector(cx, cy));
+            grid[cy][cx] = GOAL;
+          }
+          break;
+        case DRAW_OBSTACLE:
+          if (mouseButton == LEFT) {
+            if (grid[cy][cx] == EMPTY) {
+              grid[cy][cx] = OBSTACLE;
+            } else if (grid[cy][cx] == OBSTACLE) {
+              grid[cy][cx] = EMPTY;
+            }
+          }
+          break;
       }
     }
   }
-  grid[startRow][startCol] = START;
-  grid[endRow][endCol] = END;
-  resetSearchState();
-  println("[UI] 已清除所有障碍物和搜索状态。");
-}
-
-// ---------- Mouse Dragged Event (Slider) ----------
-void mouseDragged() {
-  if (isMouseOverSlider() || (mouseX >= SLIDER_X - 10 && mouseX <= SLIDER_X + SLIDER_WIDTH + 10 &&
-    mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + 25)) {
-    // Update slider position
-    float nx = constrain(mouseX, SLIDER_X, SLIDER_X + SLIDER_WIDTH);
-    sliderHandleX = nx;
-    // Calculate steps
-    float t = (sliderHandleX - SLIDER_X) / (float) SLIDER_WIDTH;
-    stepsPerFrame = round(lerp(SLIDER_MIN, SLIDER_MAX, t));
-    stepsPerFrame = constrain(stepsPerFrame, SLIDER_MIN, SLIDER_MAX);
+  
+  // Continuously draw obstacles when dragging
+  public void mouseDragged() {
+    if (currentTool == Tool.DRAW_OBSTACLE && mouseButton == LEFT) {
+      if (mouseX >= gridOffsetX && mouseX < gridOffsetX + COLS*CELL_SIZE &&
+          mouseY >= gridOffsetY && mouseY < gridOffsetY + ROWS*CELL_SIZE) {
+        int cx = (mouseX - gridOffsetX) / CELL_SIZE;
+        int cy = (mouseY - gridOffsetY) / CELL_SIZE;
+        if (grid[cy][cx] == EMPTY) {
+          grid[cy][cx] = OBSTACLE;
+        }
+      }
+    }
   }
-}
-
-// ---------- Keyboard Events ----------
-void keyPressed() {
-  if (key == 'r' || key == 'R') {
-    // Reset search
-    resetSearchState();
-    println("[键盘] 搜索已重置。");
-  } else if (key == ' ') {
-    // Space key: start/reset search
-    if (searchRunning) {
-      resetSearchState();
-      println("[键盘] 搜索已重置。");
+  
+  // Helper method: remove agent at specified position
+  void removeAgentAt(int cx, int cy) {
+    for (int i = agents.size()-1; i >= 0; i--) {
+      PVector a = agents.get(i);
+      if ((int)a.x == cx && (int)a.y == cy) {
+        agents.remove(i);
+        break;
+      }
+    }
+    grid[cy][cx] = EMPTY;
+  }
+  
+  void removeGoalAt(int cx, int cy) {
+    for (int i = goals.size()-1; i >= 0; i--) {
+      PVector g = goals.get(i);
+      if ((int)g.x == cx && (int)g.y == cy) {
+        goals.remove(i);
+        break;
+      }
+    }
+    grid[cy][cx] = EMPTY;
+  }
+  
+  // ----- Button Event Handling -----
+  void handleButton(String id) {
+    switch (id) {
+      case "ALGO_NEXT":
+        // Cycle through algorithms
+        if (currentAlgo == Algorithm.BFS) currentAlgo = Algorithm.DIJKSTRA;
+        else if (currentAlgo == Algorithm.DIJKSTRA) currentAlgo = Algorithm.ASTAR;
+        else currentAlgo = Algorithm.BFS;
+        resetSearch();
+        break;
+      case "SPEED_UP":
+        speed = min(speed + 1, 20);
+        break;
+      case "SPEED_DOWN":
+        speed = max(speed - 1, 1);
+        break;
+      case "TOGGLE_COMPARE":
+        compareMode = !compareMode;
+        resetSearch();
+        break;
+      case "TOOL_SELECT":
+        currentTool = Tool.SELECT;
+        break;
+      case "TOOL_AGENT":
+        currentTool = Tool.ADD_AGENT;
+        break;
+      case "TOOL_GOAL":
+        currentTool = Tool.ADD_GOAL;
+        break;
+      case "TOOL_OBSTACLE":
+        currentTool = Tool.DRAW_OBSTACLE;
+        break;
+      case "RUN_START":
+        if (agents.size() > 0 && goals.size() > 0) {
+          initSearch();
+          running = true;
+          paused = false;
+          algorithmFinished = false;
+        }
+        break;
+      case "RUN_PAUSE":
+        paused = !paused;
+        if (paused) running = false;
+        else if (!algorithmFinished) running = true;
+        break;
+      case "RUN_STEP":
+        if (!algorithmFinished) {
+          if (!running) {
+            initSearch();
+          }
+          algorithmStep();
+          algorithmFinished = !hasMoreSteps();
+        }
+        paused = true;
+        running = false;
+        break;
+      case "RUN_RESET":
+        resetSearch();
+        running = false;
+        paused = false;
+        algorithmFinished = false;
+        break;
+      case "RUN_CLEAR":
+        agents.clear();
+        goals.clear();
+        resetGrid();
+        resetSearch();
+        running = false;
+        paused = false;
+        algorithmFinished = false;
+        break;
+    }
+    updateButtonLabels();
+  }
+  
+  // ----- Pathfinding Algorithm Core -----
+  
+  // Initialize search (select first agent and first goal as start and end)
+  void initSearch() {
+    openList.clear();
+    closedList.clear();
+    finalPath.clear();
+    visitedCount = 0;
+    pathLength = 0;
+    cpuCycles = 0;
+    pathFound = false;
+    algorithmFinished = false;
+    
+    if (agents.size() == 0 || goals.size() == 0) return;
+    
+    PVector startVec = agents.get(0);
+    PVector goalVec = goals.get(0);
+    startNode = new Node((int)startVec.x, (int)startVec.y);
+    goalNode  = new Node((int)goalVec.x, (int)goalVec.y);
+    
+    startNode.g = 0;
+    startNode.h = heuristic(startNode, goalNode);
+    openList.add(startNode);
+  }
+  
+  // Manhattan distance heuristic (A*)
+  int heuristic(Node a, Node b) {
+    return abs(a.x - b.x) + abs(a.y - b.y);
+  }
+  
+  // Execute one expansion step (returns true if there are more steps to execute)
+  boolean algorithmStep() {
+    if (algorithmFinished || openList.isEmpty()) {
+      algorithmFinished = true;
+      return false;
+    }
+    
+    cpuCycles++;
+    
+    // Select current node (different strategy based on algorithm)
+    Node current = null;
+    if (currentAlgo == Algorithm.BFS) {
+      // BFS: queue FIFO, openList in insertion order
+      current = openList.remove(0);
     } else {
-      initStepSearch();
+      // Dijkstra or A*: minimum f = g + h
+      // Using priority queue logic, simplified: traverse to find minimum
+      int minIndex = 0;
+      int minF = openList.get(0).f();
+      for (int i = 1; i < openList.size(); i++) {
+        int f = openList.get(i).f();
+        if (f < minF) {
+          minF = f;
+          minIndex = i;
+        }
+      }
+      current = openList.remove(minIndex);
     }
-  } else if (key == 'c' || key == 'C') {
-    clearAll();
-  } else if (key == 'b' || key == 'B') {
-    if (!searchRunning) {
-      currentAlgorithm = "BFS";
-      println("[键盘] 切换到 BFS。");
+    
+    // If reached goal
+    if (current.x == goalNode.x && current.y == goalNode.y) {
+      reconstructPath(current);
+      pathFound = true;
+      algorithmFinished = true;
+      return false;
     }
-  } else if (key == 'd' || key == 'D') {
-    if (!searchRunning) {
-      currentAlgorithm = "Dijkstra";
-      println("[键盘] 切换到 Dijkstra。");
+    
+    closedList.add(current);
+    visitedCount++;
+    
+    // Expand neighbors (4 directions)
+    int[][] dirs = {{0,1},{0,-1},{1,0},{-1,0}};
+    for (int[] d : dirs) {
+      int nx = current.x + d[0];
+      int ny = current.y + d[1];
+      
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+      if (grid[ny][nx] == OBSTACLE) continue;
+      
+      Node neighbor = new Node(nx, ny);
+      if (containsNode(closedList, neighbor)) continue;
+      
+      int tentativeG = current.g + 1;  // Movement cost is 1
+      
+      // Check if in openList
+      Node existing = getNodeFromList(openList, neighbor);
+      if (existing == null) {
+        neighbor.g = tentativeG;
+        if (currentAlgo == Algorithm.ASTAR) {
+          neighbor.h = heuristic(neighbor, goalNode);
+        } else if (currentAlgo == Algorithm.DIJKSTRA) {
+          neighbor.h = 0;
+        } else {
+          // BFS: do not compute h, but for queue order, can be ignored
+          neighbor.h = 0;
+        }
+        neighbor.parent = current;
+        openList.add(neighbor);
+      } else if (tentativeG < existing.g) {
+        existing.g = tentativeG;
+        existing.parent = current;
+        // Reordering (would require re-insert, simplified for now; affects efficiency but functionally correct)
+      }
     }
-  } else if (key == 'p' || key == 'P') {
-    // Print non-animated BFS path under current obstacle layout
-    println("\n[键盘] 手动触发非动画 BFS 路径打印：");
-    runFullBFSConsole();
-    println();
+    
+    return true;
   }
-}
+  
+  boolean hasMoreSteps() {
+    return !openList.isEmpty() && !algorithmFinished;
+  }
+  
+  // Reconstruct path
+  void reconstructPath(Node node) {
+    finalPath.clear();
+    Node n = node;
+    while (n != null) {
+      finalPath.add(0, n);
+      n = n.parent;
+    }
+    pathLength = finalPath.size() - 1; // Step count
+  }
+  
+  // Utility functions
+  boolean containsNode(List<Node> list, Node node) {
+    for (Node n : list) {
+      if (n.x == node.x && n.y == node.y) return true;
+    }
+    return false;
+  }
+  
+  Node getNodeFromList(List<Node> list, Node node) {
+    for (Node n : list) {
+      if (n.x == node.x && n.y == node.y) return n;
+    }
+    return null;
+  }
+  
+  // Reset search state
+  void resetSearch() {
+    openList.clear();
+    closedList.clear();
+    finalPath.clear();
+    visitedCount = 0;
+    pathLength = 0;
+    cpuCycles = 0;
+    pathFound = false;
+    algorithmFinished = false;
+    startNode = null;
+    goalNode = null;
+  }
+  
+  // ----- Inner Class: UI Button -----
+  class UIButton {
+    int x, y, w, h;
+    String label;
+    String id;
+    boolean hovered = false;
+    
+    UIButton(int x, int y, int w, int h, String label, String id) {
+      this.x = x;
+      this.y = y;
+      this.w = w;
+      this.h = h;
+      this.label = label;
+      this.id = id;
+    }
+    
+    boolean isOver(int mx, int my) {
+      return mx >= x && mx <= x+w && my >= y && my <= y+h;
+    }
+    
+    void draw() {
+      hovered = isOver(mouseX, mouseY);
+      fill(hovered ? 100 : 70);
+      stroke(150);
+      rect(x, y, w, h, 5);
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(12);
+      text(label, x + w/2, y + h/2);
+    }
+  }
+  
+  // Main entry point (required by Processing)
+  public static void main(String[] args) {
+    PApplet.main("PathfindingArena");
+  }
