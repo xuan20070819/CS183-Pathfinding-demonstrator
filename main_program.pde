@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.PriorityQueue;
 
 // ----- Grid Settings -----
 final int COLS = 40;
@@ -41,6 +42,9 @@ boolean algorithmFinished = false;
 // BFS specific data structures (new)
 ArrayDeque<Node> bfsQueue;
 boolean[][] visited;   // visited cells during BFS
+// Dijkstra specific data structures
+PriorityQueue<Node> dijkstraQueue;
+int[][] dist;          // 记录到每个点的最短距离
 
 // ----- UI Controls -----
 enum Tool { SELECT, ADD_AGENT, ADD_GOAL, DRAW_OBSTACLE }
@@ -521,11 +525,14 @@ void handleButton(String id) {
                     running = true;
                     paused = false;
                     algorithmFinished = false;
-                } else {
-                    // Other algorithms not implemented yet, just reset
-                    println("Algorithm " + currentAlgo + " is not implemented.");
-                    running = false;
-                }
+                } else if (currentAlgo == Algorithm.DIJKSTRA) {
+    startNode = new Node((int)agents.get(0).x, (int)agents.get(0).y);
+    goalNode  = new Node((int)goals.get(0).x, (int)goals.get(0).y);
+    initDijkstra();
+    running = true;
+    paused = false;
+    algorithmFinished = false;
+}
             }
             break;
         case "RUN_PAUSE":
@@ -534,25 +541,26 @@ void handleButton(String id) {
             else if (!algorithmFinished) running = true;
             break;
         case "RUN_STEP":
-            // Single-step execution
-            if (!algorithmFinished) {
-                // If not yet initialized, initialize BFS with first agent/goal
-                if (bfsQueue == null && agents.size() > 0 && goals.size() > 0) {
-                    if (currentAlgo == Algorithm.BFS) {
-                        startNode = new Node((int)agents.get(0).x, (int)agents.get(0).y);
-                        goalNode  = new Node((int)goals.get(0).x, (int)goals.get(0).y);
-                        initBFS();
-                        algorithmFinished = false;
-                    } else {
-                        println("Algorithm not implemented.");
-                        return;
-                    }
-                }
-                algorithmStep();
-                paused = true;
-                running = false;
+    if (!algorithmFinished) {
+        // 未初始化时自动初始化
+        if ((bfsQueue == null && dijkstraQueue == null) && agents.size() > 0 && goals.size() > 0) {
+            startNode = new Node((int)agents.get(0).x, (int)agents.get(0).y);
+            goalNode  = new Node((int)goals.get(0).x, (int)goals.get(0).y);
+            if (currentAlgo == Algorithm.BFS) {
+                initBFS();
+            } else if (currentAlgo == Algorithm.DIJKSTRA) {
+                initDijkstra();
+            } else {
+                println("Algorithm not implemented.");
+                return;
             }
-            break;
+            algorithmFinished = false;
+        }
+        algorithmStep();
+        paused = true;
+        running = false;
+    }
+    break;
         case "RUN_RESET":
             resetSearch();
             running = false;
@@ -604,14 +612,40 @@ void initBFS() {
     cpuCycles = 0;
     pathFound = false;
 }
+// ========== Dijkstra Algorithm Initialization ==========
+void initDijkstra() {
+    dijkstraQueue = new PriorityQueue<>();
+    visited = new boolean[ROWS][COLS];
+    dist = new int[ROWS][COLS];
+
+    // 初始化所有距离为无穷大
+    for (int i = 0; i < ROWS; i++) {
+        Arrays.fill(dist[i], Integer.MAX_VALUE);
+    }
+
+    // 起点初始化
+    startNode.g = 0;
+    dist[startNode.y][startNode.x] = 0;
+
+    dijkstraQueue.add(startNode);
+    openList.add(startNode);   // 加入可视化的 frontier 列表
+
+    visitedCount = 0;
+    pathLength = 0;
+    cpuCycles = 0;
+    pathFound = false;
+}
 
 // Returns true if search continues, false if finished (path found or no path)
 boolean algorithmStep() {
-    if (currentAlgo != Algorithm.BFS) {
-        algorithmFinished = true;
-        return false;
-    }
+  if (currentAlgo == Algorithm.BFS) {
     return stepBFS();
+  } else if (currentAlgo == Algorithm.DIJKSTRA) {
+    return stepDijkstra();
+  } else {
+    algorithmFinished = true;
+    return false;
+  }
 }
 
 boolean stepBFS() {
@@ -656,6 +690,60 @@ boolean stepBFS() {
     }
 
     cpuCycles++;   // simple cycle counter
+    return true;
+}
+boolean stepDijkstra() {
+    if (dijkstraQueue == null || dijkstraQueue.isEmpty()) {
+        algorithmFinished = true;
+        running = false;
+        return false;
+    }
+
+    Node current = dijkstraQueue.poll();
+
+    // 已访问过，直接跳过
+    if (visited[current.y][current.x]) {
+        return true;
+    }
+
+    visited[current.y][current.x] = true;
+    openList.remove(current);
+    closedList.add(current);
+    visitedCount++;
+
+    // 到达终点
+    if (current.equals(goalNode)) {
+        pathFound = true;
+        algorithmFinished = true;
+        running = false;
+        reconstructPath(current);
+        return false;
+    }
+
+    // 四个方向
+    int[] dx = { -1, 1,  0, 0 };
+    int[] dy = {  0, 0, -1, 1 };
+
+    for (int i = 0; i < 4; i++) {
+        int nx = current.x + dx[i];
+        int ny = current.y + dy[i];
+
+        if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+            if (!visited[ny][nx] && grid[ny][nx] != OBSTACLE) {
+                int newDist = current.g + 1;
+                if (newDist < dist[ny][nx]) {
+                    dist[ny][nx] = newDist;
+                    Node neighbor = new Node(nx, ny);
+                    neighbor.g = newDist;
+                    neighbor.parent = current;
+                    dijkstraQueue.add(neighbor);
+                    openList.add(neighbor);
+                }
+            }
+        }
+    }
+
+    cpuCycles++;
     return true;
 }
 
