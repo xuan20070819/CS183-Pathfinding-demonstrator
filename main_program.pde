@@ -147,6 +147,9 @@ public void setup() {
 
     // Create UI buttons
     createButtons();
+    
+    //show the current algorithm
+    updateButtonLabels();
 }
 
 // Reset grid (clear obstacles, keep start/goal markers)
@@ -756,4 +759,3 @@ void reconstructPath(Node goal) {
     Collections.reverse(finalPath);
     pathLength = finalPath.size() - 1;   // number of steps
 }
-
