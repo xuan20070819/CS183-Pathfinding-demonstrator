@@ -316,8 +316,6 @@ void drawArena() {
 
 // Draw explored nodes, frontier, and final path
 void drawSearchVisuals() {
-    pushMatrix();
-    translate(gridOffsetX, gridOffsetY);
     noStroke();
 
     // Explored nodes (closed list) with semi-transparent green squares
@@ -341,13 +339,12 @@ void drawSearchVisuals() {
         for (Node n : finalPath) {
             float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
             float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
-            vertex(cx-20, cy-20);
+            vertex(cx, cy);
         }
         endShape();
         strokeWeight(1);
     }
 
-    popMatrix();
 }
 
 // Draw right control panel
@@ -760,7 +757,3 @@ void reconstructPath(Node goal) {
     pathLength = finalPath.size() - 1;   // number of steps
 }
 
-// Main entry point (required by Processing)
-public static void main(String[] args) {
-    PApplet.main("PathfindingArena2");
-}
