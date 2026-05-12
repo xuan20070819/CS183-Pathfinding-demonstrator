@@ -443,3 +443,223 @@ void mouseMoved() {
 // Dijkstra priority queue (row, col, distance)
 PriorityQueue<int[]> dijkstraPQ;
 int[][] distance;                  // used for Dijkstra
+
+A*算法
+// 在现有变量声明后面添加（在 "// ---------- Search Data Structures ----------" 部分之后）
+PriorityQueue<AStarNode> aStarPQ;     // A* priority queue
+int[][] aStarGScore;                  // 实际代价（从起点到当前节点）
+int[][] aStarFScore;                  // 总代价（g_score + heuristic）
+boolean[][] aStarInOpenSet;           // 标记节点是否在开放集中
+
+// A* 节点类
+class AStarNode implements Comparable<AStarNode> {
+  int row, col;
+  int fScore;  // f = g + h
+  
+  AStarNode(int row, int col, int fScore) {
+    this.row = row;
+    this.col = col;
+    this.fScore = fScore;
+  }
+  
+  @Override
+  public int compareTo(AStarNode other) {
+    return Integer.compare(this.fScore, other.fScore);
+  }
+}
+
+
+// 在 initBFS() 方法后面添加
+void initAStar() {
+  aStarPQ = new PriorityQueue<AStarNode>();
+  
+  aStarGScore = new int[GRID_SIZE][GRID_SIZE];
+  aStarFScore = new int[GRID_SIZE][GRID_SIZE];
+  aStarInOpenSet = new boolean[GRID_SIZE][GRID_SIZE];
+  
+  visited = new boolean[GRID_SIZE][GRID_SIZE];
+  parentR = new int[GRID_SIZE][GRID_SIZE];
+  parentC = new int[GRID_SIZE][GRID_SIZE];
+  
+  currentFrontier = new ArrayList<int[]>();
+  exploredList = new ArrayList<int[]>();
+  finalPath = new ArrayList<int[]>();
+  
+  // 初始化所有节点的代价为无穷大
+  for (int r = 0; r < GRID_SIZE; r++) {
+    for (int c = 0; c < GRID_SIZE; c++) {
+      aStarGScore[r][c] = Integer.MAX_VALUE;
+      aStarFScore[r][c] = Integer.MAX_VALUE;
+    }
+  }
+  
+  // 设置起点代价
+  aStarGScore[startRow][startCol] = 0;
+  int startHeuristic = heuristic(startRow, startCol);
+  aStarFScore[startRow][startCol] = startHeuristic;
+  
+  aStarPQ.offer(new AStarNode(startRow, startCol, startHeuristic));
+  aStarInOpenSet[startRow][startCol] = true;
+  currentFrontier.add(new int[]{startRow, startCol});
+  
+  searchRunning = true;
+  searchComplete = false;
+  pathFound = false;
+  searchStepCount = 0;
+}
+
+// 启发式函数（曼哈顿距离）
+int heuristic(int row, int col) {
+  return Math.abs(row - endRow) + Math.abs(col - endCol);
+}
+
+// A* 算法单步执行
+boolean stepAStar() {
+  if (aStarPQ == null || aStarPQ.isEmpty()) {
+    searchComplete = true;
+    searchRunning = false;
+    return false;
+  }
+  
+  AStarNode current = aStarPQ.poll();
+  int currentRow = current.row;
+  int currentCol = current.col;
+  
+  // 如果当前节点已经在关闭集中（已经在exploredList中），跳过
+  boolean isExplored = false;
+  for (int[] exp : exploredList) {
+    if (exp[0] == currentRow && exp[1] == currentCol) {
+      isExplored = true;
+      break;
+    }
+  }
+  if (isExplored) {
+    return true;
+  }
+  
+  // 加入到已探索列表
+  exploredList.add(new int[]{currentRow, currentCol});
+  aStarInOpenSet[currentRow][currentCol] = false;
+  
+  // 到达终点
+  if (currentRow == endRow && currentCol == endCol) {
+    // 重建路径
+    int r = endRow;
+    int c = endCol;
+    while (r != startRow || c != startCol) {
+      finalPath.add(0, new int[]{r, c});
+      int pr = parentR[r][c];
+      int pc = parentC[r][c];
+      r = pr;
+      c = pc;
+    }
+    pathFound = true;
+    searchComplete = true;
+    searchRunning = false;
+    return false;
+  }
+  
+  // 四个方向的移动
+  int[][] directions = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+  
+  for (int[] dir : directions) {
+    int newR = currentRow + dir[0];
+    int newC = currentCol + dir[1];
+    
+    if (newR >= 0 && newR < GRID_SIZE && newC >= 0 && newC < GRID_SIZE &&
+        grid[newR][newC] != OBSTACLE) {
+      
+      // 计算临时g_score（每一步代价为1）
+      int tentativeGScore = aStarGScore[currentRow][currentCol] + 1;
+      
+      if (tentativeGScore < aStarGScore[newR][newC]) {
+        // 更新路径
+        parentR[newR][newC] = currentRow;
+        parentC[newR][newC] = currentCol;
+        aStarGScore[newR][newC] = tentativeGScore;
+        
+        int hScore = heuristic(newR, newC);
+        int fScore = tentativeGScore + hScore;
+        aStarFScore[newR][newC] = fScore;
+        
+        // 添加到优先队列
+        if (!aStarInOpenSet[newR][newC]) {
+          aStarPQ.offer(new AStarNode(newR, newC, fScore));
+          aStarInOpenSet[newR][newC] = true;
+          
+          // 添加到frontier（用于显示）
+          boolean isFrontier = true;
+          for (int[] frontier : currentFrontier) {
+            if (frontier[0] == newR && frontier[1] == newC) {
+              isFrontier = false;
+              break;
+            }
+          }
+          if (isFrontier) {
+            currentFrontier.add(new int[]{newR, newC});
+          }
+        }
+      }
+    }
+  }
+  
+  searchStepCount++;
+  return true;
+}
+
+
+
+修改 mousePressed() 方法中的搜索逻辑：
+// 替换原有的搜索按钮逻辑部分
+if (mouseX >= BUTTON_SEARCH_X && mouseX <= BUTTON_SEARCH_X + BUTTON_WIDTH &&
+    mouseY >= BUTTON_Y && mouseY <= BUTTON_Y + BUTTON_HEIGHT) {
+  if (!searchRunning && !searchComplete) {
+    if (currentAlgorithm.equals("BFS")) {
+      initBFS();
+    } else if (currentAlgorithm.equals("A*")) {
+      initAStar();
+    }
+  }
+}
+
+// 修改算法切换按钮逻辑，添加A*选项
+if (mouseX >= BUTTON_ALGO_X && mouseX <= BUTTON_ALGO_X + BUTTON_ALGO_WIDTH &&
+    mouseY >= BUTTON_Y && mouseY <= BUTTON_Y + BUTTON_HEIGHT) {
+  if (currentAlgorithm.equals("BFS")) {
+    currentAlgorithm = "A*";
+  } else if (currentAlgorithm.equals("A*")) {
+    currentAlgorithm = "BFS";
+  }
+}
+
+
+
+修改 draw() 方法中的搜索执行逻辑：
+if (searchRunning) {
+  for (int i = 0; i < stepsPerFrame; i++) {
+    if (searchRunning) {
+      if (currentAlgorithm.equals("BFS")) {
+        stepBFS();
+      } else if (currentAlgorithm.equals("A*")) {
+        stepAStar();
+      }
+    }
+  }
+}
+
+
+
+最后，修改 resetSearchState() 方法以清理A*相关状态：
+void resetSearchState() {
+  searchRunning = false;
+  searchComplete = false;
+  pathFound = false;
+  searchStepCount = 0;
+  bfsQueue = null;
+  dijkstraPQ = null;
+  aStarPQ = null;
+  aStarInOpenSet = null;
+  currentFrontier = new ArrayList<int[]>();
+  exploredList = new ArrayList<int[]>();
+  finalPath = new ArrayList<int[]>();
+}

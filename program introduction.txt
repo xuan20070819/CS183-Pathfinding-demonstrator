@@ -1,0 +1,69 @@
+# AI Pathfinding Arena Project Report
+## 1. Project Overview
+AI Pathfinding Arena is a graphical pathfinding algorithm demonstration platform developed based on Processing. Aimed at the teaching scenarios of artificial intelligence and algorithms, this project is designed to visually display the search processes and results of classic pathfinding algorithms (such as BFS, Dijkstra, and A*) on a 2D grid map. The current version has fully implemented an interactive map editor, multi-start/multi-end point management, algorithm state simulation, and a visual feedback framework. However, the core pathfinding logic is yet to be integrated, making it a highly extensible visual prototype system.
+
+## 2. Core Features
+### Grid Map System
+The grid has a size of 40 columns × 30 rows, with each cell measuring 20 pixels. It supports the setting of obstacles, start points (Agents), and end points (Goals). Map data is dynamically maintained via a 2D array and rendered in real time as changes occur.
+
+### Multi-Agent and Multi-Target Support
+Allows simultaneous placement of multiple start points and end points, marked by blue circles (with numbers) and gold circles (with G+ numbers) respectively, reserving interfaces for future multi-path planning or distributed search.
+
+### Tool-Based Map Editing
+Provides four interactive tools:
+- Selection tool: Right-click to delete any element (obstacle, start point, or end point).
+- Agent tool: Left-click to place a new start point on an empty cell.
+- Goal tool: Left-click to place a new end point on an empty cell.
+- Obstacle tool: Left-click to add/remove obstacles; supports drag-and-draw for continuous wall creation.
+
+### Search Process Visualization
+Even though the core algorithms are not yet connected, the system has a complete set of pre-built visual data structures and rendering logic:
+- Explored nodes (Closed List) are marked with translucent green rectangles.
+- Frontier nodes (Open List) are marked with translucent yellow rectangles.
+- Final Path is drawn as a magenta highlighted polyline.
+These elements are driven by the `openList`, `closedList`, and `finalPath` lists in the controller and can be dynamically updated during algorithm execution.
+
+### Control Panel and State Management
+A feature-rich control panel is integrated on the right side of the interface, including:
+- Algorithm selection: Switch between BFS, Dijkstra, and A* via buttons (only label changes, no actual algorithm differences).
+- Speed adjustment: Step speed adjustable from 1–20 to control the number of algorithm steps executed per frame.
+- Run control: Start, Pause/Resume, Step-by-Step Execution, Reset Search State, Clear All Map Elements.
+- Real-time statistics: Display visited node count, path length, and CPU cycles (currently placeholder data, easily replaceable with real statistics).
+
+### Dynamic Feedback and Tips
+Detailed operation instructions for each tool are shown at the bottom of the control panel. The grid coordinates of the mouse position are displayed in real time in the grid area for precise editing and layout understanding.
+
+## 3. Technical Architecture Highlights
+### Object-Oriented Design
+Defines the `Node` class for pathfinding nodes, containing coordinates, g/h values, parent nodes, and comparators, compatible with priority queue requirements for A* and Dijkstra. The `UIButton` class uniformly manages panel button hover styles and click detection.
+
+### Separation of Data and View
+Map data is stored in the `grid` integer array; start/end points are maintained by dynamic arrays `agents` and `goals`. The grid state is rebuilt from the arrays during rendering, ensuring a single data source and unified rendering.
+
+### Extensible Algorithm Framework
+Although the pathfinding step execution code in `draw()` and button events is commented out, the calling position for `algorithmStep()` and the complete search state reset function `resetSearch()` are pre-configured. Developers only need to implement the specific algorithm step function and update lists such as `openList` and `closedList` to make the visualization vividly display the algorithm execution process.
+
+### Interaction Logic
+Handles mouse events via `mousePressed()` and `mouseDragged()`, distinguishing panel button clicks from grid area operations for smooth drawing and editing.
+
+## 4. User Operation Flow
+1. After launching the program, a default start point (5,5) and end point (34,24) are generated on a blank grid map.
+2. Select the desired tool from the control panel to freely place/remove start points, end points, or obstacles on the grid.
+3. Choose the pathfinding algorithm to demonstrate (BFS, Dijkstra, A*).
+4. Adjust the execution speed and click "Start" to run the algorithm (currently virtual execution), observing the real-time expansion of three colored areas and the drawing of the final path.
+5. Use "Pause" or "Step" for single-step debugging; click "Reset" to clear search data while retaining the map; "Clear All" fully resets to a blank state.
+
+## 5. Current Status and Future Outlook
+### Current Status
+The project has a complete UI shell and visual-driven foundation, but the core pathfinding algorithms are not implemented. All search state updates in button events are only placeholders without actual path calculation. Statistics and visual elements remain at static initial values.
+
+### Future Work
+- Implement pathfinding algorithms: Write the `algorithmStep()` function according to the selected algorithm (BFS/Dijkstra/A*), populate `openList` and `closedList`, backtrack to generate `finalPath`, and update `visitedCount`, `pathLength`, and `cpuCycles`.
+- Real performance measurement: Introduce CPU cycle counting or execution time statistics for meaningful performance data.
+- Multi-start to nearest end support: Use existing multi-agent/goal lists to find the shortest path from a single start point to all end points.
+- Algorithm comparison mode: Restore the "Compare" button and support dual-screen simultaneous running of two algorithms for side-by-side comparison.
+- UI enhancement and export: Optimize visual styles, add path length labels, animation transitions, and support exporting search results as text/images.
+
+## 6. Conclusion
+AI Pathfinding Arena is a well-designed, modular teaching demonstration platform for pathfinding. It maps complex abstract graph search algorithms into an intuitive color-coded grid exploration process, lowering the cognitive barrier for algorithm understanding while retaining ample flexibility for future functional expansion. As a front-end framework, the current version is interactive and demonstrable. Once connected with the algorithm back-end, it will become a complete interactive teaching tool widely applicable in classrooms, technical sharing, and self-study scenarios.
+
