@@ -105,6 +105,10 @@ Slider gridRowsSlider;
 
 // 对比模式
 boolean compareMode;
+// 对比模式弹窗的临时快照
+HashMap<Algorithm, PathRecord> comparePopupRecords;
+// 防止结果弹窗重复触发
+boolean resultShown = false;
 HashMap historyPaths;
 
 // Popup
@@ -296,6 +300,8 @@ public void setup() {
   popupStartTime = 0;
   popupType = 0;
   popupButtonClickTime = 0;
+comparePopupRecords = new HashMap<Algorithm, PathRecord>();
+resultShown = false;
   
   updateLayout();
   grid = new int[gridRows][gridCols];
@@ -426,6 +432,7 @@ void showWarningPopup(String msg) {
   popupStartTime = millis();
   popupType = 0;
   popupButtonClickTime = 0;
+  resultShown = true;
 }
 
 void showNoSolutionWithClearButton(String msg) {
@@ -436,31 +443,129 @@ void showNoSolutionWithClearButton(String msg) {
   popupType = 1;
   noSolutionMsg = msg;
   msgStartTime = millis();
+  resultShown = true;
 }
 
 void showResultPopup(boolean success, String message, int visited, int pathLen, int cpu) {
+  if (compareMode) {
+    // 对比模式：保存当前结果并弹出宽屏对比弹窗
+    if (success) {
+      historyPaths.put(currentAlgo, new PathRecord(finalPath, visited, pathLen, cpu));
+    }
+    comparePopupRecords = new HashMap<Algorithm, PathRecord>(historyPaths);
+    popupMessage = "";
+    popupButtonText = "OK";
+    popupVisible = true;
+    popupStartTime = millis();
+    popupType = 2;
+    popupButtonClickTime = 0;
+    resultShown = true;
+    return;
+  }
+
+  // 普通弹窗（非对比模式）
   String title = success ? "Path Found!" : "Search Failed";
   String stats = success ? "Visited: " + visited + "\nPath Length: " + pathLen + "\nCPU Cycles: " + cpu : message;
-  if (compareMode && success && historyPaths.containsKey(currentAlgo)) {
-    PathRecord prev = (PathRecord)historyPaths.get(currentAlgo);
-    stats += "\n\n[Compare] Previous " + currentAlgo.toString() + ":\n  Visited: " + prev.visitedCount + " | Path Len: " + prev.pathLength + " | CPU: " + prev.cpuCycles;
-  }
-  // 失败时也显示对比数据
-  if (compareMode && !success && historyPaths.containsKey(currentAlgo)) {
-    PathRecord prev = (PathRecord)historyPaths.get(currentAlgo);
-    stats += "\n\n[Compare] Last successful " + currentAlgo.toString() + ":\n  Visited: " + prev.visitedCount + " | Path Len: " + prev.pathLength + " | CPU: " + prev.cpuCycles;
-  }
   popupMessage = title + "\n" + stats;
   popupButtonText = "OK";
   popupVisible = true;
   popupStartTime = millis();
   popupType = 0;
   popupButtonClickTime = 0;
+  resultShown = true;
 }
 
 void drawPopup() {
   if (!popupVisible) return;
-  
+
+if (popupType == 2) {
+    // 对比模式弹窗：宽屏三列
+    int w = 600;
+    int h = 200;
+    int cx = width/2;
+    int cy = height/2;
+    
+    fill(0, 0, 0, 230);
+    noStroke();
+    rect(cx - w/2, cy - h/2, w, h, 15);
+    stroke(100, 255, 100);
+    strokeWeight(2);
+    noFill();
+    rect(cx - w/2, cy - h/2, w, h, 15);
+    
+    // 关闭按钮 X
+    int closeSize = 20;
+    int closeX = cx + w/2 - closeSize - 8;
+    int closeY = cy - h/2 + 8;
+    boolean hoverClose = (mouseX >= closeX && mouseX <= closeX + closeSize &&
+                          mouseY >= closeY && mouseY <= closeY + closeSize);
+    stroke(255, 100, 100);
+    strokeWeight(2);
+    if (hoverClose) fill(255, 0, 0, 100);
+    else noFill();
+    rect(closeX, closeY, closeSize, closeSize, 4);
+    stroke(255);
+    line(closeX + 4, closeY + 4, closeX + closeSize - 4, closeY + closeSize - 4);
+    line(closeX + closeSize - 4, closeY + 4, closeX + 4, closeY + closeSize - 4);
+    
+    // 标题
+    fill(255, 255, 200);
+    textAlign(CENTER, CENTER);
+    textSize(14);
+    text("Algorithm Comparison", cx, cy - h/2 + 30);
+    
+    // 三个算法列
+    Algorithm[] algos = {Algorithm.BFS, Algorithm.DIJKSTRA, Algorithm.ASTAR};
+    String[] algoNames = {"BFS", "Dijkstra", "A*"};
+    float colWidth = (w - 40) / 3.0;
+    float startX = cx - w/2 + 20;
+    
+    for (int i = 0; i < 3; i++) {
+      float colX = startX + i * colWidth;
+      fill(200, 200, 255);
+      textSize(13);
+      text(algoNames[i], colX + colWidth/2, cy - h/2 + 55);
+      
+      PathRecord rec = comparePopupRecords.get(algos[i]);
+      if (rec != null) {
+        fill(255, 255, 150);
+        textSize(11);
+        text("Visited: " + rec.visitedCount, colX + colWidth/2, cy - h/2 + 80);
+        text("Path Len: " + rec.pathLength, colX + colWidth/2, cy - h/2 + 100);
+        text("CPU: " + rec.cpuCycles, colX + colWidth/2, cy - h/2 + 120);
+      } else {
+        fill(150, 150, 150);
+        textSize(11);
+        text("No data", colX + colWidth/2, cy - h/2 + 80);
+      }
+    }
+    
+    // OK 按钮
+    int btnW = 80;
+    int btnH = 30;
+    int btnX = cx - btnW/2;
+    int btnY = cy + h/2 - btnH - 15;
+    boolean hoverBtn = (mouseX >= btnX && mouseX <= btnX + btnW &&
+                        mouseY >= btnY && mouseY <= btnY + btnH);
+    fill(hoverBtn ? COLOR_BTN_HOVER : COLOR_BTN_NORMAL);
+    stroke(COLOR_BTN_STROKE);
+    rect(btnX, btnY, btnW, btnH, 5);
+    fill(COLOR_BTN_TEXT_BG);
+    textSize(13);
+    text("OK", btnX + btnW/2, btnY + btnH/2);
+    
+    // 点击处理
+    if (mousePressed && millis() - popupButtonClickTime > 200) {
+      if (hoverClose) {
+        popupVisible = false;
+        popupButtonClickTime = millis();
+      }
+      if (hoverBtn) {
+        popupVisible = false;
+        popupButtonClickTime = millis();
+      }
+    }
+  } else {
   pushStyle();
   int w = 400;
   int h = (popupButtonText.equals("Clear Obstacles") ? 150 : 130);
@@ -540,6 +645,7 @@ void drawPopup() {
     }
   }
   popStyle();
+}
 }
 
 void resizeGrid(int newCols, int newRows) {
@@ -642,22 +748,21 @@ public void draw() {
   
   if (running && !paused && !algorithmFinished) {
     for (int i = 0; i < speed; i++) {
-      if (!algorithmStep()) { 
-        algorithmFinished = true; 
-        running = false;
-        // 无论成功失败都弹窗
+       if (!algorithmStep()) {           
+      algorithmFinished = true;
+      running = false;
+      if (!resultShown) {
         if (pathFound) {
           showResultPopup(true, "Path found!", visitedCount, pathLength, cpuCycles);
-          if (compareMode) savePathToHistory();
         } else {
           showResultPopup(false, "No path exists from any start to any goal!", visitedCount, 0, cpuCycles);
         }
-        break;
       }
+      break;
     }
   }
 }
-
+}
 void drawArena() {
   pushMatrix();
   translate(gridOffsetX, gridOffsetY);
@@ -1249,6 +1354,7 @@ void handleButton(String id) {
     if (agents.size() > 0 && goals.size() > 0) {
       if (isStartBlocked()) return;
       resetSearch();
+      resultShown = false;
       MapPoint firstAgent = (MapPoint)agents.get(0);
       MapPoint firstGoal = (MapPoint)goals.get(0);
       startNode = new Node(firstAgent.x, firstAgent.y);
@@ -1290,8 +1396,16 @@ void handleButton(String id) {
         else if (currentAlgo == Algorithm.DIJKSTRA) initDijkstra();
         else if (currentAlgo == Algorithm.ASTAR) initAStar();
         algorithmFinished = false;
+        resultShown = false; 
       }
       algorithmStep();
+      if (algorithmFinished && !resultShown) { 
+        if (pathFound) {
+          showResultPopup(true, "Path found!", visitedCount, pathLength, cpuCycles);
+        } else {
+          showResultPopup(false, "No path exists from any start to any goal!", visitedCount, 0, cpuCycles);
+        }
+      }
       paused = true;
       running = false;
     }
@@ -1340,6 +1454,7 @@ void resetSearch() {
   visited = null;
   aStarQueue = null;
   dijkstraQueue = null;
+  resultShown = false;
 }
 
 // ========== Algorithms ==========
