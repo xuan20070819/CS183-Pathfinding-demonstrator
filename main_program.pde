@@ -2,8 +2,8 @@ import java.util.*;
 import java.util.PriorityQueue;
 
 // ----- Grid Settings -----
-int gridCols = 40;
-int gridRows = 40;
+int gridCols = 23;
+int gridRows = 23;
 final int CELL_SIZE = 20;
 int gridOffsetX, gridOffsetY;
 
@@ -584,7 +584,7 @@ void resizeGrid(int newCols, int newRows) {
 
 void createButtons() {
   buttons.clear();
-  int yBase = 60;
+  int yBase = 40;
   int btnH = 30;
   int btnW = panelWidth - 20;
   int x = panelX + 10;
@@ -605,8 +605,8 @@ void createButtons() {
   buttons.add(new UIButton(x, yBase + 540, btnW, btnH, "Step", "RUN_STEP"));
   buttons.add(new UIButton(x, yBase + 580, btnW, btnH, "Reset", "RUN_RESET"));
   buttons.add(new UIButton(x, yBase + 620, btnW, btnH, "Clear All", "RUN_CLEAR"));
-  gridColsSlider = new Slider(x, yBase + 660, btnW, 15, 10, 40, gridCols, "Cols");
-  gridRowsSlider = new Slider(x, yBase + 690, btnW, 15, 10, 40, gridRows, "Rows");
+  gridColsSlider = new Slider(x, yBase + 660, btnW, 15, 10, 35, gridCols, "Cols");
+  gridRowsSlider = new Slider(x, yBase + 690, btnW, 15, 10, 35, gridRows, "Rows");
 }
 
 void updateButtonLabels() {
@@ -888,7 +888,11 @@ void drawPanel() {
         if (i < gIds.size()-1) info += ",";
       }
     }
-    text(info, width-10, height-10);
+    if (startBtn != null) {
+        int textX = startBtn.x+70;
+        int textY = startBtn.y - 15;  
+        text(info, textX, textY);
+    }
     popStyle();
   }
 }
@@ -957,16 +961,24 @@ public void mousePressed() {
     
     if (currentTool == Tool.ADD_AGENT) {
       if (mouseButton == LEFT) {
-        if (grid[cy][cx] != OBSTACLE) {
-          agents.add(new MapPoint(cx, cy, nextAgentId++));
-        }
+        if (agents.size() >= 4) {
+      showWarningPopup("Agent limit reached!\nMaximum 4 start points allowed.");
+      return;
+    }
+    if (grid[cy][cx] != OBSTACLE) {
+      agents.add(new MapPoint(cx, cy, nextAgentId++));
+    }
       } else if (mouseButton == RIGHT) {
         removeAgentAt(cx, cy);
       }
     } else if (currentTool == Tool.ADD_GOAL) {
       if (mouseButton == LEFT) {
+        if (goals.size() >= 4) {
+            showWarningPopup("Goal limit reached!\nMaximum 4 goal points allowed.");
+            return;
+        }
         if (grid[cy][cx] != OBSTACLE) {
-          goals.add(new MapPoint(cx, cy, nextGoalId++));
+            goals.add(new MapPoint(cx, cy, nextGoalId++));
         }
       } else if (mouseButton == RIGHT) {
         removeGoalAt(cx, cy);
@@ -1073,6 +1085,7 @@ void removeAgentAt(int cx, int cy) {
       break;
     }
   }
+renumberAgents();
 }
 
 void removeGoalAt(int cx, int cy) {
@@ -1083,6 +1096,22 @@ void removeGoalAt(int cx, int cy) {
       break;
     }
   }
+renumberGoals();
+
+void renumberAgents() {
+  for (int i = 0; i < agents.size(); i++) {
+    MapPoint a = (MapPoint) agents.get(i);
+    a.id = i + 1;
+  }
+  nextAgentId = agents.size() + 1;
+}
+
+void renumberGoals() {
+  for (int i = 0; i < goals.size(); i++) {
+    MapPoint g = (MapPoint) goals.get(i);
+    g.id = i + 1;
+  }
+  nextGoalId = goals.size() + 1;
 }
 
 void savePathToHistory() {
@@ -1122,12 +1151,18 @@ void handleButton(String id) {
     currentTool = Tool.MOVE_POINT;
     updateButtonLabels();
   } else if (id.equals("TOOL_OBSTACLE")) {
-    if (currentTool == Tool.DRAW_OBSTACLE) {
-      currentTool = Tool.DRAW_GRASS;
-    } else if (currentTool == Tool.DRAW_GRASS) {
-      currentTool = Tool.DRAW_DESERT;
-    } else if (currentTool == Tool.DRAW_DESERT) {
-      currentTool = Tool.DRAW_OBSTACLE;
+    if (currentTool != Tool.DRAW_OBSTACLE && 
+        currentTool != Tool.DRAW_GRASS && 
+        currentTool != Tool.DRAW_DESERT) {
+        currentTool = Tool.DRAW_OBSTACLE;
+    } else {
+        if (currentTool == Tool.DRAW_OBSTACLE) {
+            currentTool = Tool.DRAW_GRASS;
+        } else if (currentTool == Tool.DRAW_GRASS) {
+            currentTool = Tool.DRAW_DESERT;
+        } else if (currentTool == Tool.DRAW_DESERT) {
+            currentTool = Tool.DRAW_OBSTACLE;
+        }
     }
     updateButtonLabels();
   } else if (id.equals("RUN_START")) {
