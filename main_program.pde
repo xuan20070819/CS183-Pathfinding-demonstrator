@@ -2,8 +2,8 @@ import java.util.*;
 import java.util.PriorityQueue;
 
 // ----- Grid Settings -----
-int gridCols = 40;
-int gridRows = 40;
+int gridCols=23;
+int gridRows=23;
 final int CELL_SIZE = 20;
 int gridOffsetX, gridOffsetY;
 
@@ -24,8 +24,6 @@ final int WEIGHT_GRASS = 3;
 // Multi-agent support
 ArrayList agents;
 ArrayList goals;
-int nextAgentId;
-int nextGoalId;
 
 // For drag-to-move tool - 支持移动起点、终点、所有地形类型
 enum DragMode { NONE, MOVE_AGENT, MOVE_GOAL, MOVE_TERRAIN }
@@ -257,7 +255,7 @@ class Slider {
 
 // ----- Setup -----
 public void settings() { 
-  size(1060, 900); 
+  size(1060, 870); 
 }
 
 public void setup() {
@@ -267,8 +265,6 @@ public void setup() {
   // 初始化变量
   agents = new ArrayList();
   goals = new ArrayList();
-  nextAgentId = 1;
-  nextGoalId = 1;
   currentDragMode = DragMode.NONE;
   draggedPoint = null;
   currentAlgo = Algorithm.BFS;
@@ -306,8 +302,8 @@ public void setup() {
   resetGrid();
   
   // 初始只有一对起点和终点
-  agents.add(new MapPoint(5, 5, nextAgentId++));
-  goals.add(new MapPoint(gridCols - 6, gridRows - 6, nextGoalId++));
+  agents.add(new MapPoint(5, 5, 1));
+  goals.add(new MapPoint(gridCols - 6, gridRows - 6, 1));
   
   createButtons();
   updateButtonLabels();
@@ -465,11 +461,6 @@ void showResultPopup(boolean success, String message, int visited, int pathLen, 
 void drawPopup() {
   if (!popupVisible) return;
   
-  if (millis() - popupStartTime > 4000) {
-    popupVisible = false;
-    return;
-  }
-  
   pushStyle();
   int w = 400;
   int h = (popupButtonText.equals("Clear Obstacles") ? 150 : 130);
@@ -486,6 +477,22 @@ void drawPopup() {
   strokeWeight(2);
   noFill();
   rect(cx - w/2, cy - h/2, w, h, 15);
+ // 关闭按钮 (X) 在右上角
+  int closeSize = 20;
+  int closeX = cx + w/2 - closeSize - 8;
+  int closeY = cy - h/2 + 8;
+  boolean hoverClose = (mouseX >= closeX && mouseX <= closeX + closeSize &&
+                        mouseY >= closeY && mouseY <= closeY + closeSize);
+
+// 绘制 X 按钮
+  stroke(255, 100, 100);
+  strokeWeight(2);
+  if (hoverClose) fill(255, 0, 0, 100);
+  else noFill();
+  rect(closeX, closeY, closeSize, closeSize, 4);
+  stroke(255);
+  line(closeX + 4, closeY + 4, closeX + closeSize - 4, closeY + closeSize - 4);
+  line(closeX + closeSize - 4, closeY + 4, closeX + 4, closeY + closeSize - 4);
   
   // Text
   fill(255, 255, 200);
@@ -511,38 +518,25 @@ void drawPopup() {
   textSize(13);
   text(popupButtonText, btnX + btnW/2, btnY + btnH/2);
   
-  // Handle button click
-  if (hover && mousePressed && millis() - popupButtonClickTime > 200) {
-    popupButtonClickTime = millis();
-    if (popupType == 1 && popupButtonText.equals("Clear Obstacles")) {
-      clearAllObstacles();
+ // Handle button click
+  if (mousePressed && millis() - popupButtonClickTime > 200) {
+    // 先检查关闭按钮
+    if (hoverClose) {
       popupVisible = false;
-      // Auto start search after clearing
-      if (agents.size() > 0 && goals.size() > 0 && canAnyStartReachAnyGoal()) {
+      popupButtonClickTime = millis();
+      popStyle();
+      return;
+    }
+    // 再检查原有按钮
+    if (hover) {
+      popupButtonClickTime = millis();
+      if (popupType == 1 && popupButtonText.equals("Clear Obstacles")) {
+        clearAllObstacles();
         resetSearch();
-        MapPoint firstAgent = (MapPoint)agents.get(0);
-        MapPoint firstGoal = (MapPoint)goals.get(0);
-        startNode = new Node(firstAgent.x, firstAgent.y);
-        goalNode = new Node(firstGoal.x, firstGoal.y);
-        if (currentAlgo == Algorithm.BFS) { 
-          initBFS(); 
-          running = true; 
-          paused = false; 
-          algorithmFinished = false; 
-        } else if (currentAlgo == Algorithm.DIJKSTRA) { 
-          initDijkstra(); 
-          running = true; 
-          paused = false; 
-          algorithmFinished = false; 
-        } else if (currentAlgo == Algorithm.ASTAR) { 
-          initAStar(); 
-          running = true; 
-          paused = false; 
-          algorithmFinished = false; 
-        }
+        popupVisible = false;
+      } else if (popupButtonText.equals("OK")) {
+        popupVisible = false;
       }
-    } else if (popupButtonText.equals("OK")) {
-      popupVisible = false;
     }
   }
   popStyle();
@@ -576,10 +570,10 @@ void resizeGrid(int newCols, int newRows) {
     if (p.x >= gridCols || p.y >= gridRows) goals.remove(i);
   }
   if (agents.isEmpty() && gridCols > 1 && gridRows > 1) {
-    agents.add(new MapPoint(1, 1, nextAgentId++));
+    agents.add(new MapPoint(1, 1, 1));
   }
   if (goals.isEmpty() && gridCols > 2 && gridRows > 2) {
-    goals.add(new MapPoint(gridCols-2, gridRows-2, nextGoalId++));
+    goals.add(new MapPoint(gridCols-2, gridRows-2, 1));
   }
   
   updateButtonLabels();
@@ -610,8 +604,8 @@ void createButtons() {
   buttons.add(new UIButton(x, yBase + 540, btnW, btnH, "Step", "RUN_STEP"));
   buttons.add(new UIButton(x, yBase + 580, btnW, btnH, "Reset", "RUN_RESET"));
   buttons.add(new UIButton(x, yBase + 620, btnW, btnH, "Clear All", "RUN_CLEAR"));
-  gridColsSlider = new Slider(x, yBase + 660, btnW, 15, 10, 40, gridCols, "Cols");
-  gridRowsSlider = new Slider(x, yBase + 690, btnW, 15, 10, 40, gridRows, "Rows");
+  gridColsSlider = new Slider(x, yBase + 660, btnW, 15, 10, 35, gridCols, "Cols");
+  gridRowsSlider = new Slider(x, yBase + 690, btnW, 15, 10, 35, gridRows, "Rows");
 }
 
 void updateButtonLabels() {
@@ -846,8 +840,7 @@ color getAlgoColor(Algorithm algo, int alpha) {
 }
 
 void drawInstructions() {
-  int arenaBottom = gridOffsetY + gridRows * CELL_SIZE;
-  int y = arenaBottom + 15;
+int y = height - 80;
   int xLeft = gridOffsetX;
   fill(150, 150, 200);
   textAlign(LEFT, TOP);
@@ -971,28 +964,28 @@ public void mousePressed() {
     if (pathFound) return;
     
     if (currentTool == Tool.MOVE_POINT) {
-      // 优先检查起点
-      for (int i = 0; i < agents.size(); i++) {
-        MapPoint a = (MapPoint)agents.get(i);
-        if (a.x == cx && a.y == cy) {
-          currentDragMode = DragMode.MOVE_AGENT;
-          draggedPoint = a;
-          return;
-        }
-      }
-      // 再检查终点
-      for (int i = 0; i < goals.size(); i++) {
-        MapPoint g = (MapPoint)goals.get(i);
-        if (g.x == cx && g.y == cy) {
-          currentDragMode = DragMode.MOVE_GOAL;
-          draggedPoint = g;
-          return;
-        }
-      }
-      // 最后检查所有地形类型（障碍物、草地、沙漠）
+  // 先从后往前查找同一格子内的 Agent，确保最晚放置的优先被拖拽
+  for (int i = agents.size() - 1; i >= 0; i--) {
+    MapPoint a = (MapPoint)agents.get(i);
+    if (a.x == cx && a.y == cy) {
+      currentDragMode = DragMode.MOVE_AGENT;
+      draggedPoint = a;
+      return;
+    }
+  }
+  // 再从后往前查找同一格子内的 Goal，优先移动最晚放置的
+  for (int i = goals.size() - 1; i >= 0; i--) {
+    MapPoint g = (MapPoint)goals.get(i);
+    if (g.x == cx && g.y == cy) {
+      currentDragMode = DragMode.MOVE_GOAL;
+      draggedPoint = g;
+      return;
+    }
+  }
+      
       if (grid[cy][cx] == OBSTACLE || grid[cy][cx] == GRASS || grid[cy][cx] == DESERT) {
         currentDragMode = DragMode.MOVE_TERRAIN;
-        // 存储当前位置和地形类型
+        
         draggedPoint = new int[]{cx, cy, grid[cy][cx]};
         return;
       }
@@ -1001,20 +994,28 @@ public void mousePressed() {
     
     if (currentTool == Tool.ADD_AGENT) {
       if (mouseButton == LEFT) {
-        if (grid[cy][cx] != OBSTACLE) {
-          agents.add(new MapPoint(cx, cy, nextAgentId++));
-          resetSearch();
-        }
+         if (agents.size() >= 4) {
+      showWarningPopup("Maximum 4 agents allowed!");
+      return;
+    }
+    if (grid[cy][cx] != OBSTACLE) {
+      agents.add(new MapPoint(cx, cy, agents.size() + 1)); 
+      resetSearch();
+    }
       } else if (mouseButton == RIGHT) {
         removeAgentAt(cx, cy);
         resetSearch();
       }
     } else if (currentTool == Tool.ADD_GOAL) {
       if (mouseButton == LEFT) {
-        if (grid[cy][cx] != OBSTACLE) {
-          goals.add(new MapPoint(cx, cy, nextGoalId++));
-          resetSearch();
-        }
+        if (goals.size() >= 4) {
+      showWarningPopup("Maximum 4 goals allowed!");
+      return;
+    }
+    if (grid[cy][cx] != OBSTACLE) {
+      goals.add(new MapPoint(cx, cy, goals.size() + 1));
+      resetSearch();
+    }
       } else if (mouseButton == RIGHT) {
         removeGoalAt(cx, cy);
         resetSearch();
@@ -1169,6 +1170,7 @@ void removeAgentAt(int cx, int cy) {
     MapPoint a = (MapPoint)agents.get(i);
     if (a.x == cx && a.y == cy) {
       agents.remove(i);
+      reassignAgentIds();
       break;
     }
   }
@@ -1179,8 +1181,22 @@ void removeGoalAt(int cx, int cy) {
     MapPoint g = (MapPoint)goals.get(i);
     if (g.x == cx && g.y == cy) {
       goals.remove(i);
+      reassignGoalIds();
       break;
     }
+  }
+}
+void reassignAgentIds() {
+  for (int i = 0; i < agents.size(); i++) {
+    MapPoint a = (MapPoint)agents.get(i);
+    a.id = i + 1;
+  }
+}
+
+void reassignGoalIds() {
+  for (int i = 0; i < goals.size(); i++) {
+    MapPoint g = (MapPoint)goals.get(i);
+    g.id = i + 1;
   }
 }
 
@@ -1280,6 +1296,13 @@ void handleButton(String id) {
       running = false;
     }
   } else if (id.equals("RUN_RESET")) {
+   for (int r = 0; r < gridRows; r++) {
+        for (int c = 0; c < gridCols; c++) {
+            if (grid[r][c] == OBSTACLE || grid[r][c] == GRASS || grid[r][c] == DESERT) {
+                grid[r][c] = EMPTY;
+            }
+        }
+    }
     resetSearch();
     running = false;
     paused = false;
@@ -1288,8 +1311,6 @@ void handleButton(String id) {
   } else if (id.equals("RUN_CLEAR")) {
     agents.clear();
     goals.clear();
-    nextAgentId = 1;
-    nextGoalId = 1;
     for (int r = 0; r < gridRows; r++) {
       for (int c = 0; c < gridCols; c++) {
         grid[r][c] = EMPTY;
