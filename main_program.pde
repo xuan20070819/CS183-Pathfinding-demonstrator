@@ -541,8 +541,8 @@ if (popupType == 2) {
     }
     
     // OK 按钮
-    int btnW = 80;
-    int btnH = 30;
+    int btnW = 60;
+    int btnH = 25;
     int btnX = cx - btnW/2;
     int btnY = cy + h/2 - btnH - 15;
     boolean hoverBtn = (mouseX >= btnX && mouseX <= btnX + btnW &&
@@ -571,8 +571,8 @@ if (popupType == 2) {
   int h = (popupButtonText.equals("Clear Obstacles") ? 150 : 130);
   int cx = width/2;
   int cy = height/2;
-  int btnW = 140;
-  int btnH = 35;
+  int btnW = 100;
+  int btnH = 28;
   
   // Background
   fill(0, 0, 0, 220);
