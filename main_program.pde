@@ -2,8 +2,8 @@ import java.util.*;
 import java.util.PriorityQueue;
 
 // ----- Grid Settings -----
-int gridCols = 23;
-int gridRows = 23;
+int gridCols = 40;
+int gridRows = 40;
 final int CELL_SIZE = 20;
 int gridOffsetX, gridOffsetY;
 
@@ -27,10 +27,10 @@ ArrayList goals;
 int nextAgentId;
 int nextGoalId;
 
-// For drag-to-move tool
-enum DragMode { NONE, MOVE_AGENT, MOVE_GOAL }
+// For drag-to-move tool - 支持移动起点、终点、所有地形类型
+enum DragMode { NONE, MOVE_AGENT, MOVE_GOAL, MOVE_TERRAIN }
 DragMode currentDragMode;
-Object draggedPoint;
+Object draggedPoint; // 可以是 MapPoint 或 int[] {x, y, terrainType}
 
 // ----- Algorithm Related -----
 enum Algorithm { BFS, DIJKSTRA, ASTAR }
@@ -449,6 +449,11 @@ void showResultPopup(boolean success, String message, int visited, int pathLen, 
     PathRecord prev = (PathRecord)historyPaths.get(currentAlgo);
     stats += "\n\n[Compare] Previous " + currentAlgo.toString() + ":\n  Visited: " + prev.visitedCount + " | Path Len: " + prev.pathLength + " | CPU: " + prev.cpuCycles;
   }
+  // 失败时也显示对比数据
+  if (compareMode && !success && historyPaths.containsKey(currentAlgo)) {
+    PathRecord prev = (PathRecord)historyPaths.get(currentAlgo);
+    stats += "\n\n[Compare] Last successful " + currentAlgo.toString() + ":\n  Visited: " + prev.visitedCount + " | Path Len: " + prev.pathLength + " | CPU: " + prev.cpuCycles;
+  }
   popupMessage = title + "\n" + stats;
   popupButtonText = "OK";
   popupVisible = true;
@@ -584,7 +589,7 @@ void resizeGrid(int newCols, int newRows) {
 
 void createButtons() {
   buttons.clear();
-  int yBase = 40;
+  int yBase = 60;
   int btnH = 30;
   int btnW = panelWidth - 20;
   int x = panelX + 10;
@@ -605,8 +610,8 @@ void createButtons() {
   buttons.add(new UIButton(x, yBase + 540, btnW, btnH, "Step", "RUN_STEP"));
   buttons.add(new UIButton(x, yBase + 580, btnW, btnH, "Reset", "RUN_RESET"));
   buttons.add(new UIButton(x, yBase + 620, btnW, btnH, "Clear All", "RUN_CLEAR"));
-  gridColsSlider = new Slider(x, yBase + 660, btnW, 15, 10, 35, gridCols, "Cols");
-  gridRowsSlider = new Slider(x, yBase + 690, btnW, 15, 10, 35, gridRows, "Rows");
+  gridColsSlider = new Slider(x, yBase + 660, btnW, 15, 10, 40, gridCols, "Cols");
+  gridRowsSlider = new Slider(x, yBase + 690, btnW, 15, 10, 40, gridRows, "Rows");
 }
 
 void updateButtonLabels() {
@@ -646,10 +651,11 @@ public void draw() {
       if (!algorithmStep()) { 
         algorithmFinished = true; 
         running = false;
+        // 无论成功失败都弹窗
         if (pathFound) {
           showResultPopup(true, "Path found!", visitedCount, pathLength, cpuCycles);
           if (compareMode) savePathToHistory();
-        } else if (!pathFound && algorithmFinished) {
+        } else {
           showResultPopup(false, "No path exists from any start to any goal!", visitedCount, 0, cpuCycles);
         }
         break;
@@ -680,56 +686,81 @@ void drawArena() {
   
   drawSearchVisuals();
   
-  // Draw starts and goals
-  for (int r = 0; r < gridRows; r++) {
-    for (int c = 0; c < gridCols; c++) {
-      ArrayList startIds = getStartIdsAt(c, r);
-      ArrayList goalIds = getGoalIdsAt(c, r);
-      
-      float cx = c * CELL_SIZE + CELL_SIZE/2;
-      float cy = r * CELL_SIZE + CELL_SIZE/2;
-      
-      if (!startIds.isEmpty() && !goalIds.isEmpty()) {
-        fill(COLOR_START);
-        arc(cx, cy, CELL_SIZE * 0.8, CELL_SIZE * 0.8, -PI/2, PI/2, PIE);
-        fill(COLOR_GOAL);
-        arc(cx, cy, CELL_SIZE * 0.8, CELL_SIZE * 0.8, PI/2, 3*PI/2, PIE);
-        fill(255);
-        textSize(8);
-        textAlign(CENTER, CENTER);
-        String startStr = "S";
-        for (int j = 0; j < startIds.size(); j++) {
-          startStr += startIds.get(j);
-          if (j < startIds.size()-1) startStr += ",";
-        }
-        text(startStr, cx, cy - 5);
-        String goalStr = "G";
-        for (int j = 0; j < goalIds.size(); j++) {
-          goalStr += goalIds.get(j);
-          if (j < goalIds.size()-1) goalStr += ",";
-        }
-        text(goalStr, cx, cy + 5);
-      } else if (!startIds.isEmpty()) {
-        color startColor = (startIds.size() == 1 && (Integer)startIds.get(0) == 1) ? COLOR_START : COLOR_START_MULTI;
-        fill(startColor);
-        ellipse(cx, cy, CELL_SIZE * 0.8, CELL_SIZE * 0.8);
-        fill(255);
-        textSize(9);
-        textAlign(CENTER, CENTER);
-        String label = "S";
-        for (int j = 0; j < startIds.size(); j++) label += startIds.get(j);
-        text(label, cx, cy);
-      } else if (!goalIds.isEmpty()) {
-        color goalColor = (goalIds.size() == 1 && (Integer)goalIds.get(0) == 1) ? COLOR_GOAL : COLOR_GOAL_MULTI;
-        fill(goalColor);
-        ellipse(cx, cy, CELL_SIZE * 0.8, CELL_SIZE * 0.8);
-        fill(255);
-        textSize(9);
-        textAlign(CENTER, CENTER);
-        String label = "G";
-        for (int j = 0; j < goalIds.size(); j++) label += goalIds.get(j);
-        text(label, cx, cy);
+  // Draw starts and goals - 支持同一格多个起点/终点堆叠显示
+  // 先按坐标分组
+  HashMap startGroups = new HashMap();
+  HashMap goalGroups = new HashMap();
+  
+  for (int i = 0; i < agents.size(); i++) {
+    MapPoint a = (MapPoint)agents.get(i);
+    String key = a.x + "," + a.y;
+    if (!startGroups.containsKey(key)) startGroups.put(key, new ArrayList());
+    ((ArrayList)startGroups.get(key)).add(a);
+  }
+  for (int i = 0; i < goals.size(); i++) {
+    MapPoint g = (MapPoint)goals.get(i);
+    String key = g.x + "," + g.y;
+    if (!goalGroups.containsKey(key)) goalGroups.put(key, new ArrayList());
+    ((ArrayList)goalGroups.get(key)).add(g);
+  }
+  
+  // 绘制起点组
+  Iterator startIt = startGroups.keySet().iterator();
+  while (startIt.hasNext()) {
+    String key = (String)startIt.next();
+    ArrayList group = (ArrayList)startGroups.get(key);
+    String[] parts = key.split(",");
+    int cx = int(parts[0]);
+    int cy = int(parts[1]);
+    float x = cx * CELL_SIZE + CELL_SIZE/2;
+    float y = cy * CELL_SIZE + CELL_SIZE/2;
+    int count = group.size();
+    MapPoint first = (MapPoint)group.get(0);
+    color startColor = (count == 1 && first.id == 1) ? COLOR_START : COLOR_START_MULTI;
+    fill(startColor);
+    ellipse(x, y, CELL_SIZE * 0.8, CELL_SIZE * 0.8);
+    fill(255);
+    textSize(count > 2 ? 7 : 9);
+    textAlign(CENTER, CENTER);
+    if (count == 1) {
+      text("S" + first.id, x, y);
+    } else {
+      String label = "S";
+      for (int i = 0; i < group.size(); i++) {
+        MapPoint p = (MapPoint)group.get(i);
+        label += p.id;
       }
+      text(label, x, y);
+    }
+  }
+  
+  // 绘制终点组
+  Iterator goalIt = goalGroups.keySet().iterator();
+  while (goalIt.hasNext()) {
+    String key = (String)goalIt.next();
+    ArrayList group = (ArrayList)goalGroups.get(key);
+    String[] parts = key.split(",");
+    int cx = int(parts[0]);
+    int cy = int(parts[1]);
+    float x = cx * CELL_SIZE + CELL_SIZE/2;
+    float y = cy * CELL_SIZE + CELL_SIZE/2;
+    int count = group.size();
+    MapPoint first = (MapPoint)group.get(0);
+    color goalColor = (count == 1 && first.id == 1) ? COLOR_GOAL : COLOR_GOAL_MULTI;
+    fill(goalColor);
+    ellipse(x, y, CELL_SIZE * 0.8, CELL_SIZE * 0.8);
+    fill(255);
+    textSize(count > 2 ? 7 : 9);
+    textAlign(CENTER, CENTER);
+    if (count == 1) {
+      text("G" + first.id, x, y);
+    } else {
+      String label = "G";
+      for (int i = 0; i < group.size(); i++) {
+        MapPoint p = (MapPoint)group.get(i);
+        label += p.id;
+      }
+      text(label, x, y);
     }
   }
   
@@ -823,7 +854,7 @@ void drawInstructions() {
   textSize(12);
   text("Agent: Left-click -> add start, Right-click -> remove start", xLeft, y);
   text("Goal: Left-click -> add goal, Right-click -> remove goal", xLeft, y+18);
-  text("Move: Drag start/goal to reposition", xLeft, y+36);
+  text("Move: Drag start/goal/terrain (Obstacle/Grass/Desert) to reposition", xLeft, y+36);
   text("Obstacle/Grass/Desert: Left-click to draw, Right-click to erase", xLeft, y+54);
 }
 
@@ -888,11 +919,11 @@ void drawPanel() {
         if (i < gIds.size()-1) info += ",";
       }
     }
-    if (startBtn != null) {
-        int textX = startBtn.x+70;
-        int textY = startBtn.y - 15;  
-        text(info, textX, textY);
-    }
+    // 显示当前格子的地形
+    if (grid[my][mx] == OBSTACLE) info += " | Obstacle";
+    else if (grid[my][mx] == GRASS) info += " | Grass";
+    else if (grid[my][mx] == DESERT) info += " | Desert";
+    text(info, width-10, height-10);
     popStyle();
   }
 }
@@ -940,6 +971,7 @@ public void mousePressed() {
     if (pathFound) return;
     
     if (currentTool == Tool.MOVE_POINT) {
+      // 优先检查起点
       for (int i = 0; i < agents.size(); i++) {
         MapPoint a = (MapPoint)agents.get(i);
         if (a.x == cx && a.y == cy) {
@@ -948,6 +980,7 @@ public void mousePressed() {
           return;
         }
       }
+      // 再检查终点
       for (int i = 0; i < goals.size(); i++) {
         MapPoint g = (MapPoint)goals.get(i);
         if (g.x == cx && g.y == cy) {
@@ -956,56 +989,71 @@ public void mousePressed() {
           return;
         }
       }
+      // 最后检查所有地形类型（障碍物、草地、沙漠）
+      if (grid[cy][cx] == OBSTACLE || grid[cy][cx] == GRASS || grid[cy][cx] == DESERT) {
+        currentDragMode = DragMode.MOVE_TERRAIN;
+        // 存储当前位置和地形类型
+        draggedPoint = new int[]{cx, cy, grid[cy][cx]};
+        return;
+      }
       return;
     }
     
     if (currentTool == Tool.ADD_AGENT) {
       if (mouseButton == LEFT) {
-        if (agents.size() >= 4) {
-      showWarningPopup("Agent limit reached!\nMaximum 4 start points allowed.");
-      return;
-    }
-    if (grid[cy][cx] != OBSTACLE) {
-      agents.add(new MapPoint(cx, cy, nextAgentId++));
-    }
+        if (grid[cy][cx] != OBSTACLE) {
+          agents.add(new MapPoint(cx, cy, nextAgentId++));
+          resetSearch();
+        }
       } else if (mouseButton == RIGHT) {
         removeAgentAt(cx, cy);
+        resetSearch();
       }
     } else if (currentTool == Tool.ADD_GOAL) {
       if (mouseButton == LEFT) {
-        if (goals.size() >= 4) {
-            showWarningPopup("Goal limit reached!\nMaximum 4 goal points allowed.");
-            return;
-        }
         if (grid[cy][cx] != OBSTACLE) {
-            goals.add(new MapPoint(cx, cy, nextGoalId++));
+          goals.add(new MapPoint(cx, cy, nextGoalId++));
+          resetSearch();
         }
       } else if (mouseButton == RIGHT) {
         removeGoalAt(cx, cy);
+        resetSearch();
       }
     } else if (currentTool == Tool.DRAW_OBSTACLE) {
       if (mouseButton == LEFT) {
         if (!hasStartAt(cx, cy) && !hasGoalAt(cx, cy)) {
           grid[cy][cx] = OBSTACLE;
+          resetSearch();
         }
       } else if (mouseButton == RIGHT) {
-        if (grid[cy][cx] == OBSTACLE) grid[cy][cx] = EMPTY;
+        if (grid[cy][cx] == OBSTACLE) {
+          grid[cy][cx] = EMPTY;
+          resetSearch();
+        }
       }
     } else if (currentTool == Tool.DRAW_GRASS) {
       if (mouseButton == LEFT) {
         if (!hasStartAt(cx, cy) && !hasGoalAt(cx, cy)) {
           grid[cy][cx] = GRASS;
+          resetSearch();
         }
       } else if (mouseButton == RIGHT) {
-        if (grid[cy][cx] == GRASS) grid[cy][cx] = EMPTY;
+        if (grid[cy][cx] == GRASS) {
+          grid[cy][cx] = EMPTY;
+          resetSearch();
+        }
       }
     } else if (currentTool == Tool.DRAW_DESERT) {
       if (mouseButton == LEFT) {
         if (!hasStartAt(cx, cy) && !hasGoalAt(cx, cy)) {
           grid[cy][cx] = DESERT;
+          resetSearch();
         }
       } else if (mouseButton == RIGHT) {
-        if (grid[cy][cx] == DESERT) grid[cy][cx] = EMPTY;
+        if (grid[cy][cx] == DESERT) {
+          grid[cy][cx] = EMPTY;
+          resetSearch();
+        }
       }
     }
   }
@@ -1038,10 +1086,45 @@ public void mouseDragged() {
         mouseY >= gridOffsetY && mouseY < gridOffsetY + gridRows * CELL_SIZE) {
       int newX = (mouseX - gridOffsetX) / CELL_SIZE;
       int newY = (mouseY - gridOffsetY) / CELL_SIZE;
-      if (grid[newY][newX] != OBSTACLE) {
+      
+      // 边界检查
+      if (newX < 0 || newX >= gridCols || newY < 0 || newY >= gridRows) return;
+      
+      if (currentDragMode == DragMode.MOVE_AGENT) {
         MapPoint p = (MapPoint)draggedPoint;
+        // 不能移动到障碍物上，也不能移动到有起点/终点的格子上（除非是移动自己）
+        if (grid[newY][newX] == OBSTACLE) return;
+        if ((hasStartAt(newX, newY) && !(p.x == newX && p.y == newY)) || 
+            (hasGoalAt(newX, newY))) return;
         p.x = newX;
         p.y = newY;
+        resetSearch();
+      } else if (currentDragMode == DragMode.MOVE_GOAL) {
+        MapPoint p = (MapPoint)draggedPoint;
+        if (grid[newY][newX] == OBSTACLE) return;
+        if ((hasGoalAt(newX, newY) && !(p.x == newX && p.y == newY)) || 
+            (hasStartAt(newX, newY))) return;
+        p.x = newX;
+        p.y = newY;
+        resetSearch();
+      } else if (currentDragMode == DragMode.MOVE_TERRAIN) {
+        int[] oldData = (int[])draggedPoint;
+        int oldX = oldData[0];
+        int oldY = oldData[1];
+        int terrainType = oldData[2];
+        
+        // 不能移动到有起点或终点的格子上
+        if (hasStartAt(newX, newY) || hasGoalAt(newX, newY)) return;
+        // 不能移动到已有非空地形的位置（除非是相同位置）
+        if ((grid[newY][newX] == OBSTACLE || grid[newY][newX] == GRASS || grid[newY][newX] == DESERT) && 
+            !(newX == oldX && newY == oldY)) return;
+        
+        // 清除原位置的地形
+        grid[oldY][oldX] = EMPTY;
+        // 在新位置放置地形
+        grid[newY][newX] = terrainType;
+        // 更新拖拽点为新位置
+        draggedPoint = new int[]{newX, newY, terrainType};
         resetSearch();
       }
     }
@@ -1062,8 +1145,12 @@ public void mouseDragged() {
       
       if (mouseButton == LEFT) {
         grid[cy][cx] = newVal;
+        resetSearch();
       } else if (mouseButton == RIGHT) {
-        if (grid[cy][cx] == newVal) grid[cy][cx] = EMPTY;
+        if (grid[cy][cx] == newVal) {
+          grid[cy][cx] = EMPTY;
+          resetSearch();
+        }
       }
     }
   }
@@ -1085,7 +1172,6 @@ void removeAgentAt(int cx, int cy) {
       break;
     }
   }
-renumberAgents();
 }
 
 void removeGoalAt(int cx, int cy) {
@@ -1096,22 +1182,6 @@ void removeGoalAt(int cx, int cy) {
       break;
     }
   }
-renumberGoals();
-
-void renumberAgents() {
-  for (int i = 0; i < agents.size(); i++) {
-    MapPoint a = (MapPoint) agents.get(i);
-    a.id = i + 1;
-  }
-  nextAgentId = agents.size() + 1;
-}
-
-void renumberGoals() {
-  for (int i = 0; i < goals.size(); i++) {
-    MapPoint g = (MapPoint) goals.get(i);
-    g.id = i + 1;
-  }
-  nextGoalId = goals.size() + 1;
 }
 
 void savePathToHistory() {
@@ -1151,18 +1221,12 @@ void handleButton(String id) {
     currentTool = Tool.MOVE_POINT;
     updateButtonLabels();
   } else if (id.equals("TOOL_OBSTACLE")) {
-    if (currentTool != Tool.DRAW_OBSTACLE && 
-        currentTool != Tool.DRAW_GRASS && 
-        currentTool != Tool.DRAW_DESERT) {
-        currentTool = Tool.DRAW_OBSTACLE;
-    } else {
-        if (currentTool == Tool.DRAW_OBSTACLE) {
-            currentTool = Tool.DRAW_GRASS;
-        } else if (currentTool == Tool.DRAW_GRASS) {
-            currentTool = Tool.DRAW_DESERT;
-        } else if (currentTool == Tool.DRAW_DESERT) {
-            currentTool = Tool.DRAW_OBSTACLE;
-        }
+    if (currentTool == Tool.DRAW_OBSTACLE) {
+      currentTool = Tool.DRAW_GRASS;
+    } else if (currentTool == Tool.DRAW_GRASS) {
+      currentTool = Tool.DRAW_DESERT;
+    } else if (currentTool == Tool.DRAW_DESERT) {
+      currentTool = Tool.DRAW_OBSTACLE;
     }
     updateButtonLabels();
   } else if (id.equals("RUN_START")) {
