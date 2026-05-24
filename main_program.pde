@@ -1,13 +1,13 @@
 import java.util.*;
 import java.util.PriorityQueue;
 
-// ----- Grid Settings -----
+//-----Grid Settings-----
 int gridCols=23;
 int gridRows=23;
 final int CELL_SIZE = 20;
 int gridOffsetX, gridOffsetY;
 
-// Grid cell states
+//Grid cell states
 final int EMPTY = 0;
 final int OBSTACLE = 1;
 final int START = 2;
@@ -16,7 +16,7 @@ final int GRASS = 4;
 final int DESERT = 5;
 int[][] grid;
 
-// Terrain weight map
+//Terrain weight map
 final int WEIGHT_NORMAL = 1;
 final int WEIGHT_DESERT = 2;
 final int WEIGHT_GRASS = 3;
@@ -25,10 +25,10 @@ final int WEIGHT_GRASS = 3;
 ArrayList agents;
 ArrayList goals;
 
-// For drag-to-move tool - 支持移动起点、终点、所有地形类型
+//For drag-to-move tool-Supports moving start and end points, all terrain types
 enum DragMode { NONE, MOVE_AGENT, MOVE_GOAL, MOVE_TERRAIN }
 DragMode currentDragMode;
-Object draggedPoint; // 可以是 MapPoint 或 int[] {x, y, terrainType}
+Object draggedPoint; //is MapPoint or int[] {x, y, terrainType}
 
 // ----- Algorithm Related -----
 enum Algorithm { BFS, DIJKSTRA, ASTAR }
@@ -60,7 +60,7 @@ int[][] dist;
 // A* specific
 PriorityQueue aStarQueue;
 
-// ----- UI Controls -----
+//----- UI Controls -----This part is KangFeng
 enum Tool { ADD_AGENT, ADD_GOAL, DRAW_OBSTACLE, DRAW_GRASS, DRAW_DESERT, MOVE_POINT }
 Tool currentTool;
 
@@ -68,7 +68,7 @@ boolean terrainDropdownExpanded;
 int terrainDropdownY;
 int terrainDropdownBtnH;
 
-// Color definitions
+// Color definitions------HuangJingfan exchange some color
 final color COLOR_GRASS = #228B22;
 final color COLOR_DESERT = #F4A460;
 final color COLOR_OBSTACLE = #c4c4c4ff;
@@ -103,15 +103,13 @@ int msgStartTime;
 Slider gridColsSlider;
 Slider gridRowsSlider;
 
-// 对比模式
+//Comparison mode
 boolean compareMode;
-// 对比模式弹窗的临时快照
 HashMap<Algorithm, PathRecord> comparePopupRecords;
-// 防止结果弹窗重复触发
 boolean resultShown = false;
 HashMap historyPaths;
 
-// Popup
+//Popup
 String popupMessage;
 String popupButtonText;
 boolean popupVisible;
@@ -119,7 +117,7 @@ int popupStartTime;
 int popupType;
 int popupButtonClickTime;
 
-// ----- Inner Classes -----
+//-----Inner Classes-----
 class MapPoint {
   int x, y, id;
   MapPoint(int x, int y, int id) {
@@ -146,6 +144,7 @@ class PathRecord {
   }
 }
 
+//This part is KangFeng
 class UIButton {
   int x, y, w, h;
   String label;
@@ -257,7 +256,7 @@ class Slider {
   }
 }
 
-// ----- Setup -----
+//----- Setup -----this part is KangFeng
 public void settings() { 
   size(1060, 870); 
 }
@@ -266,7 +265,7 @@ public void setup() {
   surface.setTitle("AI Pathfinding Arena");
   textFont(createFont("Arial", 14));
   
-  // 初始化变量
+  // the variable
   agents = new ArrayList();
   goals = new ArrayList();
   currentDragMode = DragMode.NONE;
@@ -307,10 +306,9 @@ resultShown = false;
   grid = new int[gridRows][gridCols];
   resetGrid();
   
-  // 初始只有一对起点和终点
+  //the begin only set a agent and a goal
   agents.add(new MapPoint(5, 5, 1));
   goals.add(new MapPoint(gridCols - 6, gridRows - 6, 1));
-  
   createButtons();
   updateButtonLabels();
 }
@@ -448,7 +446,7 @@ void showNoSolutionWithClearButton(String msg) {
 
 void showResultPopup(boolean success, String message, int visited, int pathLen, int cpu) {
   if (compareMode) {
-    // 对比模式：保存当前结果并弹出宽屏对比弹窗
+    // in order to keep this data on the comparison mode
     if (success) {
       historyPaths.put(currentAlgo, new PathRecord(finalPath, visited, pathLen, cpu));
     }
@@ -463,7 +461,7 @@ void showResultPopup(boolean success, String message, int visited, int pathLen, 
     return;
   }
 
-  // 普通弹窗（非对比模式）
+  //this is off comparison mode
   String title = success ? "Path Found!" : "Search Failed";
   String stats = success ? "Visited: " + visited + "\nPath Length: " + pathLen + "\nCPU Cycles: " + cpu : message;
   popupMessage = title + "\n" + stats;
@@ -478,13 +476,13 @@ void showResultPopup(boolean success, String message, int visited, int pathLen, 
 void drawPopup() {
   if (!popupVisible) return;
 
+//draw the comparison mode's popup include three algo
 if (popupType == 2) {
-    // 对比模式弹窗：宽屏三列
     int w = 600;
     int h = 200;
     int cx = width/2;
     int cy = height/2;
-    
+    //backgroud
     fill(0, 0, 0, 230);
     noStroke();
     rect(cx - w/2, cy - h/2, w, h, 15);
@@ -492,8 +490,7 @@ if (popupType == 2) {
     strokeWeight(2);
     noFill();
     rect(cx - w/2, cy - h/2, w, h, 15);
-    
-    // 关闭按钮 X
+    //draw the "X"
     int closeSize = 20;
     int closeX = cx + w/2 - closeSize - 8;
     int closeY = cy - h/2 + 8;
@@ -508,13 +505,13 @@ if (popupType == 2) {
     line(closeX + 4, closeY + 4, closeX + closeSize - 4, closeY + closeSize - 4);
     line(closeX + closeSize - 4, closeY + 4, closeX + 4, closeY + closeSize - 4);
     
-    // 标题
+    //title
     fill(255, 255, 200);
     textAlign(CENTER, CENTER);
     textSize(14);
     text("Algorithm Comparison", cx, cy - h/2 + 30);
     
-    // 三个算法列
+    //list the three algo
     Algorithm[] algos = {Algorithm.BFS, Algorithm.DIJKSTRA, Algorithm.ASTAR};
     String[] algoNames = {"BFS", "Dijkstra", "A*"};
     float colWidth = (w - 40) / 3.0;
@@ -540,7 +537,7 @@ if (popupType == 2) {
       }
     }
     
-    // OK 按钮
+    //OK button
     int btnW = 60;
     int btnH = 25;
     int btnX = cx - btnW/2;
@@ -554,7 +551,7 @@ if (popupType == 2) {
     textSize(13);
     text("OK", btnX + btnW/2, btnY + btnH/2);
     
-    // 点击处理
+    // the click deal
     if (mousePressed && millis() - popupButtonClickTime > 200) {
       if (hoverClose) {
         popupVisible = false;
@@ -567,6 +564,8 @@ if (popupType == 2) {
     }
   } else {
   pushStyle();
+
+//the "off comparison mode"'s popup
   int w = 400;
   int h = (popupButtonText.equals("Clear Obstacles") ? 150 : 130);
   int cx = width/2;
@@ -582,14 +581,13 @@ if (popupType == 2) {
   strokeWeight(2);
   noFill();
   rect(cx - w/2, cy - h/2, w, h, 15);
- // 关闭按钮 (X) 在右上角
+
+ //the"X"button
   int closeSize = 20;
   int closeX = cx + w/2 - closeSize - 8;
   int closeY = cy - h/2 + 8;
   boolean hoverClose = (mouseX >= closeX && mouseX <= closeX + closeSize &&
                         mouseY >= closeY && mouseY <= closeY + closeSize);
-
-// 绘制 X 按钮
   stroke(255, 100, 100);
   strokeWeight(2);
   if (hoverClose) fill(255, 0, 0, 100);
@@ -609,7 +607,7 @@ if (popupType == 2) {
     text(lines[i], cx, textStartY + i * 22);
   }
   
-  // Button
+  //Button
   int btnX = cx - btnW/2;
   int btnY = cy + h/2 - btnH - 10;
   
@@ -625,14 +623,14 @@ if (popupType == 2) {
   
  // Handle button click
   if (mousePressed && millis() - popupButtonClickTime > 200) {
-    // 先检查关闭按钮
+    //first,check the "X"buttono
     if (hoverClose) {
       popupVisible = false;
       popupButtonClickTime = millis();
       popStyle();
       return;
     }
-    // 再检查原有按钮
+    //Recheck the original buttons
     if (hover) {
       popupButtonClickTime = millis();
       if (popupType == 1 && popupButtonText.equals("Clear Obstacles")) {
@@ -738,7 +736,7 @@ void updateButtonLabels() {
   }
 }
 
-// ----- Drawing -----
+//----- Drawing -----
 public void draw() {
   background(20, 20, 40);
   drawArena();
@@ -785,8 +783,7 @@ void drawArena() {
   
   drawSearchVisuals();
   
-  // Draw starts and goals - 支持同一格多个起点/终点堆叠显示
-  // 先按坐标分组
+  //Draw starts and goals
   HashMap startGroups = new HashMap();
   HashMap goalGroups = new HashMap();
   
@@ -803,7 +800,7 @@ void drawArena() {
     ((ArrayList)goalGroups.get(key)).add(g);
   }
   
-  // 绘制起点组
+  //draw the agent
   Iterator startIt = startGroups.keySet().iterator();
   while (startIt.hasNext()) {
     String key = (String)startIt.next();
@@ -833,7 +830,7 @@ void drawArena() {
     }
   }
   
-  // 绘制终点组
+  //draw the array of goal
   Iterator goalIt = goalGroups.keySet().iterator();
   while (goalIt.hasNext()) {
     String key = (String)goalIt.next();
@@ -1017,7 +1014,7 @@ void drawPanel() {
         if (i < gIds.size()-1) info += ",";
       }
     }
-    // 显示当前格子的地形
+   //Display the terrain of the current cell
     if (grid[my][mx] == OBSTACLE) info += " | Obstacle";
     else if (grid[my][mx] == GRASS) info += " | Grass";
     else if (grid[my][mx] == DESERT) info += " | Desert";
@@ -1068,8 +1065,7 @@ public void mousePressed() {
     int cy = (mouseY - gridOffsetY) / CELL_SIZE;
     if (pathFound) return;
     
-    if (currentTool == Tool.MOVE_POINT) {
-  // 先从后往前查找同一格子内的 Agent，确保最晚放置的优先被拖拽
+    if (currentTool == Tool.MOVE_POINT) {//this move bug is fixed by KangFeng
   for (int i = agents.size() - 1; i >= 0; i--) {
     MapPoint a = (MapPoint)agents.get(i);
     if (a.x == cx && a.y == cy) {
@@ -1078,7 +1074,6 @@ public void mousePressed() {
       return;
     }
   }
-  // 再从后往前查找同一格子内的 Goal，优先移动最晚放置的
   for (int i = goals.size() - 1; i >= 0; i--) {
     MapPoint g = (MapPoint)goals.get(i);
     if (g.x == cx && g.y == cy) {
@@ -1090,7 +1085,6 @@ public void mousePressed() {
       
       if (grid[cy][cx] == OBSTACLE || grid[cy][cx] == GRASS || grid[cy][cx] == DESERT) {
         currentDragMode = DragMode.MOVE_TERRAIN;
-        
         draggedPoint = new int[]{cx, cy, grid[cy][cx]};
         return;
       }
@@ -1193,12 +1187,12 @@ public void mouseDragged() {
       int newX = (mouseX - gridOffsetX) / CELL_SIZE;
       int newY = (mouseY - gridOffsetY) / CELL_SIZE;
       
-      // 边界检查
+      //check
       if (newX < 0 || newX >= gridCols || newY < 0 || newY >= gridRows) return;
       
       if (currentDragMode == DragMode.MOVE_AGENT) {
         MapPoint p = (MapPoint)draggedPoint;
-        // 不能移动到障碍物上，也不能移动到有起点/终点的格子上（除非是移动自己）
+        //Cannot move onto obstacles, nor onto the grids with starting/ending points (unless moving oneself)
         if (grid[newY][newX] == OBSTACLE) return;
         if ((hasStartAt(newX, newY) && !(p.x == newX && p.y == newY)) || 
             (hasGoalAt(newX, newY))) return;
@@ -1219,17 +1213,17 @@ public void mouseDragged() {
         int oldY = oldData[1];
         int terrainType = oldData[2];
         
-        // 不能移动到有起点或终点的格子上
+        //Cannot move onto the squares with starting or ending points.
         if (hasStartAt(newX, newY) || hasGoalAt(newX, newY)) return;
-        // 不能移动到已有非空地形的位置（除非是相同位置）
+        //Cannot be moved to an existing non-empty terrain location (unless it is the same location)
         if ((grid[newY][newX] == OBSTACLE || grid[newY][newX] == GRASS || grid[newY][newX] == DESERT) && 
             !(newX == oldX && newY == oldY)) return;
         
-        // 清除原位置的地形
+        //Remove the terrain at the original location
         grid[oldY][oldX] = EMPTY;
-        // 在新位置放置地形
+        //Place the terrain in the new location
         grid[newY][newX] = terrainType;
-        // 更新拖拽点为新位置
+        //Update the drag point to the new position
         draggedPoint = new int[]{newX, newY, terrainType};
         resetSearch();
       }
