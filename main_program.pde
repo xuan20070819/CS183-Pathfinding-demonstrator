@@ -865,27 +865,47 @@ void drawArena() {
 
 void drawSearchVisuals() {
   noStroke();
+
   fill(COLOR_EXPLORED);
   for (int i = 0; i < closedList.size(); i++) {
-    Node n = (Node)closedList.get(i);
-    if (grid[n.y][n.x] != OBSTACLE) {
+    Node n = (Node) closedList.get(i);
+    int cellType = grid[n.y][n.x];
+
+    // Blank grid: Normally displays a semi-transparent background
+    if (cellType == EMPTY) {
       rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
     }
+    // Terrain grid (grassland/Desert/Obstacle) : Only draw small dots
+    else {
+      float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
+      float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
+      ellipse(cx, cy, 5, 5); // 小点标记
+    }
   }
+
   fill(COLOR_FRONTIER);
   for (int i = 0; i < openList.size(); i++) {
-    Node n = (Node)openList.get(i);
-    if (grid[n.y][n.x] != OBSTACLE) {
+    Node n = (Node) openList.get(i);
+    int cellType = grid[n.y][n.x];
+
+    // Blank grid: Normally displays a semi-transparent background
+    if (cellType == EMPTY) {
       rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
     }
+    // Terrain grid: Only draw small dots
+    else {
+      float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
+      float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
+      ellipse(cx, cy, 6, 6);
+    }
   }
-  
+
   if (compareMode) {
     Iterator it = historyPaths.entrySet().iterator();
     while (it.hasNext()) {
-      Map.Entry entry = (Map.Entry)it.next();
-      Algorithm algo = (Algorithm)entry.getKey();
-      PathRecord rec = (PathRecord)entry.getValue();
+      Map.Entry entry = (Map.Entry) it.next();
+      Algorithm algo = (Algorithm) entry.getKey();
+      PathRecord rec = (PathRecord) entry.getValue();
       if (rec.path == null || rec.path.size() < 2) continue;
       drawPathWithBloom(rec.path, getAlgoColor(algo, 255), 3);
     }
