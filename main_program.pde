@@ -743,12 +743,29 @@ if (popupType == 2) {
   pushStyle();
 
 //the "off comparison mode"'s popup
-  int w = 400;
-  int h = (popupButtonText.equals("Clear Obstacles") ? 150 : 130);
-  int cx = width/2;
-  int cy = height/2;
   int btnW = 100;
   int btnH = 28;
+  int textSizeVal = 13;
+  int lineHeight = 24;
+  int padding = 40;
+  int btnAreaHeight = 50;
+  
+  // Calculate popup dimensions based on text
+  textSize(textSizeVal);
+  String[] lines = popupMessage.split("\n");
+  float maxTextWidth = 0;
+  for (String line : lines) {
+    float lineWidth = textWidth(line);
+    if (lineWidth > maxTextWidth) {
+      maxTextWidth = lineWidth;
+    }
+  }
+  
+  // Calculate width and height with padding
+  int w = (int)max(maxTextWidth + padding * 2, 300);
+  int h = (int)(lines.length * lineHeight + padding * 2 + btnAreaHeight);
+  int cx = width/2;
+  int cy = height/2;
   
   // Background
   fill(0, 0, 0, 220);
@@ -777,11 +794,10 @@ if (popupType == 2) {
   // Text
   fill(255, 255, 200);
   textAlign(CENTER, CENTER);
-  textSize(13);
-  String[] lines = popupMessage.split("\n");
-  int textStartY = cy - h/2 + 35;
+  textSize(textSizeVal);
+  int textStartY = cy - h/2 + padding;
   for (int i=0; i<lines.length; i++) {
-    text(lines[i], cx, textStartY + i * 22);
+    text(lines[i], cx, textStartY + i * lineHeight);
   }
   
   //Button
@@ -1373,7 +1389,10 @@ public void mousePressed() {
     
     if (currentTool == Tool.ADD_AGENT) {
       if (mouseButton == LEFT) {
-         if (agents.size() >= 4) {
+         if (compareMode && agents.size() >= 1) {
+      showWarningPopup("Compare mode only supports 1 agent!");
+      return;
+    } else if (agents.size() >= 4) {
       showWarningPopup("Maximum 4 agents allowed!");
       return;
     }
@@ -1387,7 +1406,10 @@ public void mousePressed() {
       }
     } else if (currentTool == Tool.ADD_GOAL) {
       if (mouseButton == LEFT) {
-        if (goals.size() >= 4) {
+        if (compareMode && goals.size() >= 1) {
+      showWarningPopup("Compare mode only supports 1 goal!");
+      return;
+    } else if (goals.size() >= 4) {
       showWarningPopup("Maximum 4 goals allowed!");
       return;
     }
@@ -1596,6 +1618,38 @@ void handleButton(String id) {
   if (id.equals("COMPARE_MODE")) {
     compareMode = !compareMode;
     if (!compareMode) clearHistoryPaths();
+    
+    // If enabling compare mode, check and remove excess points
+    if (compareMode) {
+      String warningMsg = null;
+      boolean removed = false;
+      
+      // Remove excess agents
+      if (agents.size() > 1) {
+        for (int i = agents.size() - 1; i >= 1; i--) {
+          MapPoint p = (MapPoint)agents.remove(i);
+          grid[p.y][p.x] = EMPTY;
+        }
+        removed = true;
+      }
+      
+      // Remove excess goals
+      if (goals.size() > 1) {
+        for (int i = goals.size() - 1; i >= 1; i--) {
+          MapPoint p = (MapPoint)goals.remove(i);
+          grid[p.y][p.x] = EMPTY;
+        }
+        removed = true;
+      }
+      
+      if (removed) {
+        warningMsg = "Compare mode only supports 1 start and 1 goal.\nRemoved excess points.";
+        showWarningPopup(warningMsg);
+      }
+      
+      resetSearch();
+    }
+    
     updateButtonLabels();
   } else if (id.equals("ALGO_NEXT")) {
     if (compareMode && pathFound) savePathToHistory();
@@ -1633,6 +1687,27 @@ void handleButton(String id) {
   } else if (id.equals("RUN_START")) {
     if (agents.size() > 0 && goals.size() > 0) {
       if (isStartBlocked()) return;
+      
+      // Auto-balance start and goal counts
+      String warningMsg = null;
+      if (agents.size() != goals.size()) {
+        int minSize = min(agents.size(), goals.size());
+        int removedAgents = agents.size() - minSize;
+        int removedGoals = goals.size() - minSize;
+        
+        // Remove excess points from grid and arrays
+        for (int i = agents.size() - 1; i >= minSize; i--) {
+          MapPoint p = (MapPoint)agents.remove(i);
+          grid[p.y][p.x] = EMPTY;
+        }
+        for (int i = goals.size() - 1; i >= minSize; i--) {
+          MapPoint p = (MapPoint)goals.remove(i);
+          grid[p.y][p.x] = EMPTY;
+        }
+        
+        warningMsg = "Auto-adjusted: removed " + removedAgents + " excess start point(s) and " + removedGoals + " excess goal point(s)";
+      }
+      
       resetSearch();
       resultShown = false;
       
@@ -1690,6 +1765,11 @@ void handleButton(String id) {
       running = true; 
       paused = false; 
       algorithmFinished = false;
+      
+      // Show warning if auto-adjusted
+      if (warningMsg != null) {
+        showWarningPopup(warningMsg);
+      }
     } else {
       if (agents.isEmpty()) {
         showWarningPopup("Missing Start Point!\nPlease use Agent tool to add a start point.");
