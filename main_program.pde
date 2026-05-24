@@ -42,7 +42,7 @@ boolean paused;
 // Search process data
 ArrayList openList;
 ArrayList closedList;
-ArrayList finalPath;
+ArrayList<Node> finalPath;
 Node startNode;
 Node goalNode;
 int visitedCount;
@@ -1020,24 +1020,8 @@ void drawPanel() {
     String info = "Grid: (" + mx + ", " + my + ")";
     ArrayList sIds = getStartIdsAt(mx, my);
     ArrayList gIds = getGoalIdsAt(mx, my);
-    if (!sIds.isEmpty()) {
-      info += " | Starts: S";
-      for (int i = 0; i < sIds.size(); i++) {
-        info += sIds.get(i);
-        if (i < sIds.size()-1) info += ",";
-      }
-    }
-    if (!gIds.isEmpty()) {
-      info += " | Goals: G";
-      for (int i = 0; i < gIds.size(); i++) {
-        info += gIds.get(i);
-        if (i < gIds.size()-1) info += ",";
-      }
-    }
+  
    //Display the terrain of the current cell
-    if (grid[my][mx] == OBSTACLE) info += " | Obstacle";
-    else if (grid[my][mx] == GRASS) info += " | Grass";
-    else if (grid[my][mx] == DESERT) info += " | Desert";
     text(info, width-10, height-10);
     popStyle();
   }
@@ -1684,5 +1668,12 @@ void reconstructPath(Node goal) {
     cur = cur.parent;
   }
   Collections.reverse(finalPath);
-  pathLength = finalPath.size() - 1;
+
+  // Calculation of weighted path length
+  pathLength = 0;
+  for (int i = 0; i < finalPath.size() - 1; i++) {
+    Node node = finalPath.get(i);
+    int cellType = grid[node.y][node.x];
+    pathLength += getTerrainWeight(cellType);
+  }
 }
