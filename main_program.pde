@@ -37,6 +37,7 @@ Algorithm currentAlgo;
 int speed;
 Slider speedSlider;
 boolean running;
+long lastStepTime;  // Track last algorithm step time for speed control
 boolean paused;
 
 // Search process data
@@ -59,6 +60,15 @@ PriorityQueue dijkstraQueue;
 int[][] dist;
 // A* specific
 PriorityQueue aStarQueue;
+
+// Multi-path mode - multiple start-end pairs (parallel)
+ArrayList<ArrayList<Node>> allFinalPaths;      // Store all paths
+ArrayList<Integer> allVisitedCounts;          // Visited count for each path
+ArrayList<Integer> allPathLengths;            // Length of each path
+ArrayList<Integer> allCpuCycles;              // CPU cycles for each path
+ArrayList<Boolean> allPathFound;              // Whether each path was found
+ArrayList<MultiPathState> multiPathStates;    // Parallel states for all paths
+boolean multiPathMode;                        // Whether in multi-path mode
 
 //----- UI Controls -----This part is KangFeng
 enum Tool { ADD_AGENT, ADD_GOAL, DRAW_OBSTACLE, DRAW_GRASS, DRAW_DESERT, MOVE_POINT }
@@ -141,6 +151,65 @@ class PathRecord {
     visitedCount = v;
     pathLength = pl;
     cpuCycles = cpu;
+  }
+}
+
+// Multi-path mode - each path has its own state
+class MultiPathState {
+  int index;
+  Node startNode;
+  Node goalNode;
+  boolean pathFound;
+  boolean finished;
+  ArrayList<Node> finalPath;
+  ArrayList<Node> openList;
+  ArrayList<Node> closedList;
+  int visitedCount;
+  int pathLength;
+  int cpuCycles;
+  boolean[][] visited;
+  // BFS specific
+  Queue<Node> bfsQueue;
+  // Dijkstra specific
+  PriorityQueue<Node> dijkstraQueue;
+  int[][] distDijkstra;
+  // A* specific
+  PriorityQueue<Node> aStarQueue;
+  int[][] distAStar;
+  
+  MultiPathState(int idx, Node start, Node goal, int cols, int rows) {
+    index = idx;
+    startNode = start;
+    goalNode = goal;
+    pathFound = false;
+    finished = false;
+    finalPath = new ArrayList<Node>();
+    openList = new ArrayList<Node>();
+    closedList = new ArrayList<Node>();
+    visitedCount = 0;
+    pathLength = 0;
+    cpuCycles = 0;
+    visited = new boolean[rows][cols];
+    for (int i = 0; i < rows; i++) {
+      Arrays.fill(visited[i], false);
+    }
+    bfsQueue = new LinkedList<Node>();
+    dijkstraQueue = new PriorityQueue<Node>(11, new Comparator<Node>() {
+      public int compare(Node a, Node b) {
+        return a.g - b.g;
+      }
+    });
+    distDijkstra = new int[rows][cols];
+    aStarQueue = new PriorityQueue<Node>(11, new Comparator<Node>() {
+      public int compare(Node a, Node b) {
+        return (a.g + a.h) - (b.g + b.h);
+      }
+    });
+    distAStar = new int[rows][cols];
+    for (int i = 0; i < rows; i++) {
+      Arrays.fill(distDijkstra[i], Integer.MAX_VALUE);
+      Arrays.fill(distAStar[i], Integer.MAX_VALUE);
+    }
   }
 }
 
@@ -248,6 +317,10 @@ class Slider {
     float fillW = map(value, minVal, maxVal, 0, w);
     float handleX = x + fillW;
     return dist(mx, my, handleX, y + h/2) < 10;
+  }
+  
+  boolean overSlider(int mx, int my) {
+    return mx >= x && mx <= x + w && my >= y - 5 && my <= y + h + 5;
   }
   
   void setFromMouse(int mx) {
@@ -473,6 +546,16 @@ void showResultPopup(boolean success, String message, int visited, int pathLen, 
   resultShown = true;
 }
 
+void showMultiPathResultPopup() {
+  popupMessage = "";
+  popupButtonText = "OK";
+  popupVisible = true;
+  popupStartTime = millis();
+  popupType = 3;
+  popupButtonClickTime = 0;
+  resultShown = true;
+}
+
 void drawPopup() {
   if (!popupVisible) return;
 
@@ -552,6 +635,100 @@ if (popupType == 2) {
     text("OK", btnX + btnW/2, btnY + btnH/2);
     
     // the click deal
+    if (mousePressed && millis() - popupButtonClickTime > 200) {
+      if (hoverClose) {
+        popupVisible = false;
+        popupButtonClickTime = millis();
+      }
+      if (hoverBtn) {
+        popupVisible = false;
+        popupButtonClickTime = millis();
+      }
+    }
+  } else if (popupType == 3) {
+    // Multi-path result popup
+    int numPaths = allFinalPaths.size();
+    int w = 500;
+    int h = 120 + numPaths * 50;
+    int cx = width/2;
+    int cy = height/2;
+    
+    // Background
+    fill(0, 0, 0, 230);
+    noStroke();
+    rect(cx - w/2, cy - h/2, w, h, 15);
+    stroke(100, 255, 100);
+    strokeWeight(2);
+    noFill();
+    rect(cx - w/2, cy - h/2, w, h, 15);
+    
+    // Close button
+    int closeSize = 20;
+    int closeX = cx + w/2 - closeSize - 8;
+    int closeY = cy - h/2 + 8;
+    boolean hoverClose = (mouseX >= closeX && mouseX <= closeX + closeSize &&
+                          mouseY >= closeY && mouseY <= closeY + closeSize);
+    stroke(255, 100, 100);
+    strokeWeight(2);
+    if (hoverClose) fill(255, 0, 0, 100);
+    else noFill();
+    rect(closeX, closeY, closeSize, closeSize, 4);
+    stroke(255);
+    line(closeX + 4, closeY + 4, closeX + closeSize - 4, closeY + closeSize - 4);
+    line(closeX + closeSize - 4, closeY + 4, closeX + 4, closeY + closeSize - 4);
+    
+    // Title
+    fill(255, 255, 200);
+    textAlign(CENTER, CENTER);
+    textSize(14);
+    text("Multi-Path Result (" + numPaths + " paths)", cx, cy - h/2 + 30);
+    
+    // Path stats
+    int[] pathColors = {0, 255, 0,  // Green
+                        255, 0, 255, // Magenta
+                        255, 165, 0, // Orange
+                        0, 255, 255}; // Cyan
+    
+    for (int i = 0; i < numPaths; i++) {
+      float y = cy - h/2 + 65 + i * 50;
+      
+      // Path number with color
+      fill(pathColors[i * 3], pathColors[i * 3 + 1], pathColors[i * 3 + 2]);
+      textSize(12);
+      text("Path " + (i + 1) + ":", cx - w/2 + 30, y);
+      
+      // Status
+      boolean found = allPathFound.get(i);
+      if (found) {
+        fill(100, 255, 100);
+      } else {
+        fill(255, 100, 100);
+      }
+      text(found ? "FOUND" : "NOT FOUND", cx - w/2 + 100, y);
+      
+      // Stats
+      fill(255, 255, 150);
+      textSize(11);
+      text("Visited: " + allVisitedCounts.get(i), cx - w/2 + 200, y);
+      text("Length: " + allPathLengths.get(i), cx - w/2 + 320, y);
+      text("CPU: " + allCpuCycles.get(i), cx - w/2 + 420, y);
+    }
+    
+    // OK button
+    int btnW = 60;
+    int btnH = 25;
+    int btnX = cx - btnW/2;
+    int btnY = cy + h/2 - btnH - 15;
+    boolean hoverBtn = (mouseX >= btnX && mouseX <= btnX + btnW &&
+                        mouseY >= btnY && mouseY <= btnY + btnH);
+    fill(hoverBtn ? COLOR_BTN_HOVER : COLOR_BTN_NORMAL);
+    stroke(COLOR_BTN_STROKE);
+    rect(btnX, btnY, btnW, btnH, 5);
+    fill(COLOR_BTN_TEXT_BG);
+    textSize(13);
+    text("OK", btnX + btnW/2, btnY + btnH/2);
+    
+    // Handle clicks
     if (mousePressed && millis() - popupButtonClickTime > 200) {
       if (hoverClose) {
         popupVisible = false;
@@ -745,21 +922,58 @@ public void draw() {
   drawPopup();
   
   if (running && !paused && !algorithmFinished) {
-    for (int i = 0; i < speed; i++) {
-       if (!algorithmStep()) {           
-      algorithmFinished = true;
-      running = false;
-      if (!resultShown) {
-        if (pathFound) {
-          showResultPopup(true, "Path found!", visitedCount, pathLength, cpuCycles);
-        } else {
-          showResultPopup(false, "No path exists from any start to any goal!", visitedCount, 0, cpuCycles);
+    long currentTime = millis();
+    // Calculate time interval per step: speed * 10 steps per second
+    // speed = 1: 20000 steps/sec (0.05ms interval)
+    // speed = 5: 100000 steps/sec (0.01ms interval)
+    // speed = 10: 200000 steps/sec (0.005ms interval)
+    // speed = 20: 400000 steps/sec (0.0025ms interval)
+    long stepInterval = 100 / (max(1, speed) * 5);
+    
+    // Only execute algorithm step if enough time has passed
+    if (currentTime - lastStepTime >= stepInterval) {
+      lastStepTime = currentTime;
+      
+      if (multiPathMode) {
+        // PARALLEL: Step all unfinished paths at once
+        boolean allFinished = true;
+        for (MultiPathState state : multiPathStates) {
+          if (!state.finished) {
+            allFinished = false;
+            if (currentAlgo == Algorithm.BFS) {
+              stepMultiBFS(state);
+            } else if (currentAlgo == Algorithm.DIJKSTRA) {
+              stepMultiDijkstra(state);
+            } else if (currentAlgo == Algorithm.ASTAR) {
+              stepMultiAStar(state);
+            }
+          }
+        }
+        
+        // Check if all paths are finished
+        if (allFinished) {
+          algorithmFinished = true;
+          running = false;
+          if (!resultShown) {
+            showMultiPathResultPopup();
+          }
+        }
+      } else {
+        // Single path mode (original behavior)
+        if (!algorithmStep()) {           
+          algorithmFinished = true;
+          running = false;
+          if (!resultShown) {
+            if (pathFound) {
+              showResultPopup(true, "Path found!", visitedCount, pathLength, cpuCycles);
+            } else {
+              showResultPopup(false, "No path exists from any start to any goal!", visitedCount, 0, cpuCycles);
+            }
+          }
         }
       }
-      break;
     }
   }
-}
 }
 void drawArena() {
   pushMatrix();
@@ -865,38 +1079,84 @@ void drawArena() {
 
 void drawSearchVisuals() {
   noStroke();
-
-  fill(COLOR_EXPLORED);
-  for (int i = 0; i < closedList.size(); i++) {
-    Node n = (Node) closedList.get(i);
-    int cellType = grid[n.y][n.x];
-
-    // Blank grid: Normally displays a semi-transparent background
-    if (cellType == EMPTY) {
-      rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+  
+  if (multiPathMode && multiPathStates != null) {
+    // Multi-path mode: Draw search state for each path
+    // Path colors: green, magenta, orange, cyan
+    color[] exploredColors = {
+      color(0, 200, 0, 100), 
+      color(200, 0, 200, 100), 
+      color(200, 130, 0, 100), 
+      color(0, 200, 200, 100)
+    };
+    color[] frontierColors = {
+      color(0, 255, 0, 120), 
+      color(255, 0, 255, 120), 
+      color(255, 165, 0, 120), 
+      color(0, 255, 255, 120)
+    };
+    
+    for (int pathIdx = 0; pathIdx < multiPathStates.size(); pathIdx++) {
+      MultiPathState state = multiPathStates.get(pathIdx);
+      if (state.finished) continue;
+      
+      color exploredColor = exploredColors[pathIdx % exploredColors.length];
+      color frontierColor = frontierColors[pathIdx % frontierColors.length];
+      
+      // Draw closed list (explored nodes)
+      fill(exploredColor);
+      for (int i = 0; i < state.closedList.size(); i++) {
+        Node n = state.closedList.get(i);
+        int cellType = grid[n.y][n.x];
+        if (cellType == EMPTY) {
+          rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+        } else {
+          float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
+          float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
+          ellipse(cx, cy, 5, 5);
+        }
+      }
+      
+      // Draw open list (frontier nodes)
+      fill(frontierColor);
+      for (int i = 0; i < state.openList.size(); i++) {
+        Node n = state.openList.get(i);
+        int cellType = grid[n.y][n.x];
+        if (cellType == EMPTY) {
+          rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+        } else {
+          float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
+          float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
+          ellipse(cx, cy, 6, 6);
+        }
+      }
     }
-    // Terrain grid (grassland/Desert/Obstacle) : Only draw small dots
-    else {
-      float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
-      float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
-      ellipse(cx, cy, 5, 5); // 小点标记
+  } else {
+    // Single path mode (original behavior)
+    fill(COLOR_EXPLORED);
+    for (int i = 0; i < closedList.size(); i++) {
+      Node n = (Node) closedList.get(i);
+      int cellType = grid[n.y][n.x];
+      if (cellType == EMPTY) {
+        rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+      } else {
+        float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
+        float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
+        ellipse(cx, cy, 5, 5);
+      }
     }
-  }
-
-  fill(COLOR_FRONTIER);
-  for (int i = 0; i < openList.size(); i++) {
-    Node n = (Node) openList.get(i);
-    int cellType = grid[n.y][n.x];
-
-    // Blank grid: Normally displays a semi-transparent background
-    if (cellType == EMPTY) {
-      rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-    }
-    // Terrain grid: Only draw small dots
-    else {
-      float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
-      float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
-      ellipse(cx, cy, 6, 6);
+  
+    fill(COLOR_FRONTIER);
+    for (int i = 0; i < openList.size(); i++) {
+      Node n = (Node) openList.get(i);
+      int cellType = grid[n.y][n.x];
+      if (cellType == EMPTY) {
+        rect(n.x * CELL_SIZE + 1, n.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+      } else {
+        float cx = n.x * CELL_SIZE + CELL_SIZE / 2;
+        float cy = n.y * CELL_SIZE + CELL_SIZE / 2;
+        ellipse(cx, cy, 6, 6);
+      }
     }
   }
 
@@ -910,7 +1170,23 @@ void drawSearchVisuals() {
       drawPathWithBloom(rec.path, getAlgoColor(algo, 255), 3);
     }
   }
-  if (pathFound && finalPath.size() > 1) {
+  
+  // Draw all paths in multi-path mode
+  if (multiPathMode && allFinalPaths != null) {
+    // Path colors: green, magenta, orange, cyan
+    color[] pathColors = {color(0, 255, 0), color(255, 0, 255), color(255, 165, 0), color(0, 255, 255)};
+    
+    for (int i = 0; i < allFinalPaths.size(); i++) {
+      ArrayList<Node> path = allFinalPaths.get(i);
+      if (path != null && path.size() > 1) {
+        color pathColor = pathColors[i % pathColors.length];
+        drawPathWithBloom(path, pathColor, 4);
+      }
+    }
+  }
+  
+  // Draw single path in normal mode
+  if (!multiPathMode && pathFound && finalPath.size() > 1) {
     drawPathWithBloom(finalPath, getAlgoColor(currentAlgo, 255), 4);
   }
 }
@@ -1040,15 +1316,15 @@ public void mousePressed() {
     }
   }
   
-  if (speedSlider.overHandle(mouseX, mouseY)) { 
+  if (speedSlider.overSlider(mouseX, mouseY)) { 
     speedSlider.dragging = true; 
     return; 
   }
-  if (gridColsSlider.overHandle(mouseX, mouseY)) { 
+  if (gridColsSlider.overSlider(mouseX, mouseY)) { 
     gridColsSlider.dragging = true; 
     return; 
   }
-  if (gridRowsSlider.overHandle(mouseX, mouseY)) { 
+  if (gridRowsSlider.overSlider(mouseX, mouseY)) { 
     gridRowsSlider.dragging = true; 
     return; 
   }
@@ -1166,7 +1442,11 @@ public void mousePressed() {
 public void mouseDragged() {
   if (speedSlider.dragging) { 
     speedSlider.setFromMouse(mouseX); 
-    speed = (int)speedSlider.value; 
+    int newSpeed = (int)speedSlider.value;
+    if (newSpeed != speed) {
+      speed = newSpeed;
+      lastStepTime = millis();  // Reset timer so speed change takes effect immediately
+    }
     return; 
   }
   if (gridColsSlider.dragging) {
@@ -1355,26 +1635,61 @@ void handleButton(String id) {
       if (isStartBlocked()) return;
       resetSearch();
       resultShown = false;
-      MapPoint firstAgent = (MapPoint)agents.get(0);
-      MapPoint firstGoal = (MapPoint)goals.get(0);
-      startNode = new Node(firstAgent.x, firstAgent.y);
-      goalNode = new Node(firstGoal.x, firstGoal.y);
-      if (currentAlgo == Algorithm.BFS) { 
-        initBFS(); 
-        running = true; 
-        paused = false; 
-        algorithmFinished = false; 
-      } else if (currentAlgo == Algorithm.DIJKSTRA) { 
-        initDijkstra(); 
-        running = true; 
-        paused = false; 
-        algorithmFinished = false; 
-      } else if (currentAlgo == Algorithm.ASTAR) { 
-        initAStar(); 
-        running = true; 
-        paused = false; 
-        algorithmFinished = false; 
+      
+      // Check if we have multiple start-end pairs
+      if (agents.size() == goals.size() && agents.size() > 1) {
+        // Multi-path mode: PARALLEL one-to-one mapping
+        multiPathMode = true;
+        
+        // Initialize multi-path data structures
+        allFinalPaths = new ArrayList<ArrayList<Node>>();
+        allVisitedCounts = new ArrayList<Integer>();
+        allPathLengths = new ArrayList<Integer>();
+        allCpuCycles = new ArrayList<Integer>();
+        allPathFound = new ArrayList<Boolean>();
+        multiPathStates = new ArrayList<MultiPathState>();
+        
+        // Initialize parallel state for each path
+        for (int i = 0; i < agents.size(); i++) {
+          MapPoint agent = (MapPoint)agents.get(i);
+          MapPoint goal = (MapPoint)goals.get(i);
+          MultiPathState state = new MultiPathState(i, new Node(agent.x, agent.y), new Node(goal.x, goal.y), gridCols, gridRows);
+          multiPathStates.add(state);
+          allFinalPaths.add(new ArrayList<Node>());
+          allVisitedCounts.add(0);
+          allPathLengths.add(0);
+          allCpuCycles.add(0);
+          allPathFound.add(false);
+          
+          // Initialize algorithm for this path
+          if (currentAlgo == Algorithm.BFS) {
+            initMultiBFS(state);
+          } else if (currentAlgo == Algorithm.DIJKSTRA) {
+            initMultiDijkstra(state);
+          } else if (currentAlgo == Algorithm.ASTAR) {
+            initMultiAStar(state);
+          }
+        }
+      } else {
+        // Single path mode
+        multiPathMode = false;
+        MapPoint firstAgent = (MapPoint)agents.get(0);
+        MapPoint firstGoal = (MapPoint)goals.get(0);
+        startNode = new Node(firstAgent.x, firstAgent.y);
+        goalNode = new Node(firstGoal.x, firstGoal.y);
+        
+        if (currentAlgo == Algorithm.BFS) { 
+          initBFS(); 
+        } else if (currentAlgo == Algorithm.DIJKSTRA) { 
+          initDijkstra(); 
+        } else if (currentAlgo == Algorithm.ASTAR) { 
+          initAStar(); 
+        }
       }
+      
+      running = true; 
+      paused = false; 
+      algorithmFinished = false;
     } else {
       if (agents.isEmpty()) {
         showWarningPopup("Missing Start Point!\nPlease use Agent tool to add a start point.");
@@ -1455,6 +1770,16 @@ void resetSearch() {
   aStarQueue = null;
   dijkstraQueue = null;
   resultShown = false;
+  lastStepTime = 0;  // Reset step time counter
+  
+  // Reset multi-path mode variables
+  if (allFinalPaths != null) allFinalPaths.clear();
+  if (allVisitedCounts != null) allVisitedCounts.clear();
+  if (allPathLengths != null) allPathLengths.clear();
+  if (allCpuCycles != null) allCpuCycles.clear();
+  if (allPathFound != null) allPathFound.clear();
+  if (multiPathStates != null) multiPathStates.clear();
+  multiPathMode = false;
 }
 
 // ========== Algorithms ==========
@@ -1513,6 +1838,189 @@ int heuristic(Node a, Node b) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
+// ========== Multi-Path Parallel Algorithms ==========
+void initMultiBFS(MultiPathState state) {
+  state.bfsQueue.add(state.startNode);
+  state.visited[state.startNode.y][state.startNode.x] = true;
+  state.openList.add(state.startNode);
+}
+
+void initMultiDijkstra(MultiPathState state) {
+  state.startNode.g = 0;
+  state.distDijkstra[state.startNode.y][state.startNode.x] = 0;
+  state.dijkstraQueue.add(state.startNode);
+  state.openList.add(state.startNode);
+}
+
+void initMultiAStar(MultiPathState state) {
+  state.startNode.g = 0;
+  state.distAStar[state.startNode.y][state.startNode.x] = 0;
+  state.startNode.h = heuristic(state.startNode, state.goalNode);
+  state.aStarQueue.add(state.startNode);
+  state.openList.add(state.startNode);
+}
+
+boolean stepMultiBFS(MultiPathState state) {
+  if (state.bfsQueue == null || state.bfsQueue.isEmpty()) {
+    state.finished = true;
+    allVisitedCounts.set(state.index, state.visitedCount);
+    allPathLengths.set(state.index, 0);
+    allCpuCycles.set(state.index, state.cpuCycles);
+    allPathFound.set(state.index, false);
+    return false;
+  }
+  Node current = state.bfsQueue.poll();
+  state.openList.remove(current);
+  state.closedList.add(current);
+  state.visitedCount++;
+  
+  if (current.equals(state.goalNode)) {
+    state.pathFound = true;
+    state.finished = true;
+    reconstructMultiPath(state, current);
+    return false;
+  }
+  
+  int[] dx = {-1, 1, 0, 0};
+  int[] dy = {0, 0, -1, 1};
+  for (int i = 0; i < 4; i++) {
+    int nx = current.x + dx[i];
+    int ny = current.y + dy[i];
+    if (nx >= 0 && nx < gridCols && ny >= 0 && ny < gridRows && !state.visited[ny][nx] && grid[ny][nx] != OBSTACLE) {
+      state.visited[ny][nx] = true;
+      Node neighbor = new Node(nx, ny);
+      neighbor.parent = current;
+      state.bfsQueue.add(neighbor);
+      state.openList.add(neighbor);
+    }
+  }
+  state.cpuCycles++;
+  return true;
+}
+
+boolean stepMultiDijkstra(MultiPathState state) {
+  if (state.dijkstraQueue == null || state.dijkstraQueue.isEmpty()) {
+    state.finished = true;
+    allVisitedCounts.set(state.index, state.visitedCount);
+    allPathLengths.set(state.index, 0);
+    allCpuCycles.set(state.index, state.cpuCycles);
+    allPathFound.set(state.index, false);
+    return false;
+  }
+  Node current = state.dijkstraQueue.poll();
+  if (state.visited[current.y][current.x]) return true;
+  state.visited[current.y][current.x] = true;
+  state.openList.remove(current);
+  state.closedList.add(current);
+  state.visitedCount++;
+  
+  if (current.equals(state.goalNode)) {
+    state.pathFound = true;
+    state.finished = true;
+    reconstructMultiPath(state, current);
+    return false;
+  }
+  
+  int[] dx = {-1, 1, 0, 0};
+  int[] dy = {0, 0, -1, 1};
+  for (int i = 0; i < 4; i++) {
+    int nx = current.x + dx[i];
+    int ny = current.y + dy[i];
+    
+    if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows) continue;
+    if (grid[ny][nx] == OBSTACLE) continue;
+
+    int newG = current.g + getTerrainWeight(grid[ny][nx]);
+
+    if (newG < state.distDijkstra[ny][nx]) {
+      state.distDijkstra[ny][nx] = newG;
+      Node neighbor = new Node(nx, ny);
+      neighbor.g = newG;
+      neighbor.parent = current;
+      state.dijkstraQueue.add(neighbor);
+      state.openList.add(neighbor);
+    }
+  }
+  state.cpuCycles++;
+  return true;
+}
+
+boolean stepMultiAStar(MultiPathState state) {
+  if (state.aStarQueue == null || state.aStarQueue.isEmpty()) {
+    state.finished = true;
+    allVisitedCounts.set(state.index, state.visitedCount);
+    allPathLengths.set(state.index, 0);
+    allCpuCycles.set(state.index, state.cpuCycles);
+    allPathFound.set(state.index, false);
+    return false;
+  }
+  Node current = state.aStarQueue.poll();
+  if (state.visited[current.y][current.x]) return true;
+  state.visited[current.y][current.x] = true;
+  state.openList.remove(current);
+  state.closedList.add(current);
+  state.visitedCount++;
+  
+  if (current.equals(state.goalNode)) {
+    state.pathFound = true;
+    state.finished = true;
+    reconstructMultiPath(state, current);
+    return false;
+  }
+  
+  int[] dx = {-1, 1, 0, 0};
+  int[] dy = {0, 0, -1, 1};
+  for (int i = 0; i < 4; i++) {
+    int nx = current.x + dx[i];
+    int ny = current.y + dy[i];
+    
+    if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows) continue;
+    if (grid[ny][nx] == OBSTACLE) continue;
+
+    int newG = current.g + getTerrainWeight(grid[ny][nx]);
+    Node neighbor = new Node(nx, ny);
+    neighbor.g = newG;
+    neighbor.h = heuristic(neighbor, state.goalNode);
+    neighbor.parent = current;
+
+    if (newG < state.distAStar[ny][nx]) {
+      state.distAStar[ny][nx] = newG;
+      state.aStarQueue.add(neighbor);
+      state.openList.add(neighbor);
+    }
+  }
+  state.cpuCycles++;
+  return true;
+}
+
+void reconstructMultiPath(MultiPathState state, Node endNode) {
+  state.finalPath.clear();
+  Node current = endNode;
+  while (current != null) {
+    state.finalPath.add(0, current);
+    current = current.parent;
+  }
+  
+  state.pathLength = 0;
+  for (int i = 0; i < state.finalPath.size(); i++) {
+    Node node = state.finalPath.get(i);
+    if (i > 0) {
+      state.pathLength += getTerrainWeight(grid[node.y][node.x]);
+    }
+  }
+  
+  ArrayList<Node> pathCopy = new ArrayList<Node>();
+  for (int i = 0; i < state.finalPath.size(); i++) {
+    Node n = state.finalPath.get(i);
+    pathCopy.add(new Node(n.x, n.y));
+  }
+  allFinalPaths.set(state.index, pathCopy);
+  allVisitedCounts.set(state.index, state.visitedCount);
+  allPathLengths.set(state.index, state.pathLength);
+  allCpuCycles.set(state.index, state.cpuCycles);
+  allPathFound.set(state.index, true);
+}
+
 int getTerrainWeight(int cellType) {
   switch (cellType) {
     case GRASS: return WEIGHT_GRASS;
@@ -1545,8 +2053,8 @@ boolean stepBFS() {
   if (current.equals(goalNode)) {
     pathFound = true;
     algorithmFinished = true;
-    running = false;
     reconstructPath(current);
+    running = false;
     return false;
   }
   
@@ -1583,8 +2091,8 @@ boolean stepDijkstra() {
   if (current.equals(goalNode)) {
     pathFound = true;
     algorithmFinished = true;
-    running = false;
     reconstructPath(current);
+    running = false;
     return false;
   }
   
@@ -1629,8 +2137,8 @@ boolean stepAStar() {
   if (current.equals(goalNode)) {
     pathFound = true;
     algorithmFinished = true;
-    running = false;
     reconstructPath(current);
+    running = false;
     return false;
   }
   
@@ -1676,4 +2184,6 @@ void reconstructPath(Node goal) {
     int cellType = grid[node.y][node.x];
     pathLength += getTerrainWeight(cellType);
   }
+  
+  // Note: Multi-path mode path saving is handled by reconstructMultiPath()
 }
