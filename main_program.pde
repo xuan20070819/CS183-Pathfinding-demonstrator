@@ -18,8 +18,8 @@ int[][] grid;
 
 //Terrain weight map
 final int WEIGHT_NORMAL = 1;
-final int WEIGHT_DESERT = 2;
-final int WEIGHT_GRASS = 3;
+final int WEIGHT_DESERT = 3;
+final int WEIGHT_GRASS = 6;
 
 // Multi-agent support
 ArrayList agents;
@@ -1508,7 +1508,15 @@ void initDijkstra() {
 void initAStar() {
   aStarQueue = new PriorityQueue();
   visited = new boolean[gridRows][gridCols];
+  dist = new int[gridRows][gridCols];
+  for (int i = 0; i < gridRows; i++) {
+    for (int j = 0; j < gridCols; j++) {
+      dist[i][j] = Integer.MAX_VALUE;
+    }
+  }
+
   startNode.g = 0;
+  dist[startNode.y][startNode.x] = 0;  // 也要加
   startNode.h = heuristic(startNode, goalNode);
   aStarQueue.add(startNode);
   openList.add(startNode);
@@ -1601,16 +1609,20 @@ boolean stepDijkstra() {
   for (int i = 0; i < 4; i++) {
     int nx = current.x + dx[i];
     int ny = current.y + dy[i];
-    if (nx >= 0 && nx < gridCols && ny >= 0 && ny < gridRows && !visited[ny][nx] && grid[ny][nx] != OBSTACLE) {
-      int newDist = current.g + getTerrainWeight(grid[ny][nx]);
-      if (newDist < dist[ny][nx]) {
-        dist[ny][nx] = newDist;
-        Node neighbor = new Node(nx, ny);
-        neighbor.g = newDist;
-        neighbor.parent = current;
-        dijkstraQueue.add(neighbor);
-        openList.add(neighbor);
-      }
+    
+    if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows) continue;
+    if (grid[ny][nx] == OBSTACLE) continue;
+
+    int newG = current.g + getTerrainWeight(grid[ny][nx]);
+
+    // If the new path is shorter, it should be updated regardless of whether it is in the queue or not
+    if (newG < dist[ny][nx]) {
+      dist[ny][nx] = newG;
+      Node neighbor = new Node(nx, ny);
+      neighbor.g = newG;
+      neighbor.parent = current;
+      dijkstraQueue.add(neighbor);
+      openList.add(neighbor);
     }
   }
   cpuCycles++;
@@ -1643,12 +1655,19 @@ boolean stepAStar() {
   for (int i = 0; i < 4; i++) {
     int nx = current.x + dx[i];
     int ny = current.y + dy[i];
-    if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows || grid[ny][nx] == OBSTACLE) continue;
+    
+    if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows) continue;
+    if (grid[ny][nx] == OBSTACLE) continue;
+
+    int newG = current.g + getTerrainWeight(grid[ny][nx]);
     Node neighbor = new Node(nx, ny);
-    neighbor.g = current.g + getTerrainWeight(grid[ny][nx]);
+    neighbor.g = newG;
     neighbor.h = heuristic(neighbor, goalNode);
     neighbor.parent = current;
-    if (!visited[ny][nx]) {
+
+    //Only join when the cost of the new path is lower
+    if (newG < dist[ny][nx]) {
+      dist[ny][nx] = newG;
       aStarQueue.add(neighbor);
       openList.add(neighbor);
     }
