@@ -1348,6 +1348,8 @@ void handleButton(String id) {
       currentTool = Tool.DRAW_DESERT;
     } else if (currentTool == Tool.DRAW_DESERT) {
       currentTool = Tool.DRAW_OBSTACLE;
+    }else {
+        currentTool = Tool.DRAW_OBSTACLE;
     }
     updateButtonLabels();
   } else if (id.equals("RUN_START")) {
