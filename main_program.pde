@@ -1644,7 +1644,6 @@ void handleButton(String id) {
       
       if (removed) {
         warningMsg = "Compare mode only supports 1 start and 1 goal.\nRemoved excess points.";
-        showWarningPopup(warningMsg);
       }
       
       resetSearch();
@@ -1768,7 +1767,6 @@ void handleButton(String id) {
       
       // Show warning if auto-adjusted
       if (warningMsg != null) {
-        showWarningPopup(warningMsg);
       }
     } else {
       if (agents.isEmpty()) {
