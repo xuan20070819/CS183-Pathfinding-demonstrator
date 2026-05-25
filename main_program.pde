@@ -944,7 +944,7 @@ public void draw() {
     // speed = 5: 100000 steps/sec (0.01ms interval)
     // speed = 10: 200000 steps/sec (0.005ms interval)
     // speed = 20: 400000 steps/sec (0.0025ms interval)
-    long stepInterval = 100 / (max(1, speed) * 5);
+    long stepInterval = (long)(100.0 / speed);
     
     // Only execute algorithm step if enough time has passed
     if (currentTime - lastStepTime >= stepInterval) {
@@ -1658,12 +1658,14 @@ void handleButton(String id) {
     resetSearch();
     updateButtonLabels();
   } else if (id.equals("SPEED_UP")) {
-    speed = min(speed + 1, 20);
-    speedSlider.value = speed;
-  } else if (id.equals("SPEED_DOWN")) {
-    speed = max(speed - 1, 1);
-    speedSlider.value = speed;
-  } else if (id.equals("TOOL_AGENT")) {
+  speed = min(speed + 1, 20);
+  speedSlider.value = speed;
+  lastStepTime = millis();  // Effective immediately
+} else if (id.equals("SPEED_DOWN")) {
+  speed = max(speed - 1, 1);
+  speedSlider.value = speed;
+  lastStepTime = millis(); // Effective immediately
+}  else if (id.equals("TOOL_AGENT")) {
     currentTool = Tool.ADD_AGENT;
     updateButtonLabels();
   } else if (id.equals("TOOL_GOAL")) {
