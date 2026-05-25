@@ -2,8 +2,8 @@ import java.util.*;
 import java.util.PriorityQueue;
 
 //-----Grid Settings-----
-int gridCols=23;
-int gridRows=23;
+int gridCols = 23;
+int gridRows = 23;
 final int CELL_SIZE = 20;
 int gridOffsetX, gridOffsetY;
 
@@ -25,10 +25,10 @@ final int WEIGHT_GRASS = 6;
 ArrayList agents;
 ArrayList goals;
 
-//For drag-to-move tool-Supports moving start and end points, all terrain types
+//For drag-to-move tool - Supports moving start and end points, all terrain types
 enum DragMode { NONE, MOVE_AGENT, MOVE_GOAL, MOVE_TERRAIN }
 DragMode currentDragMode;
-Object draggedPoint; //is MapPoint or int[] {x, y, terrainType}
+Object draggedPoint; // is MapPoint or int[] {x, y, terrainType}
 
 // ----- Algorithm Related -----
 enum Algorithm { BFS, DIJKSTRA, ASTAR }
@@ -70,7 +70,7 @@ ArrayList<Boolean> allPathFound;              // Whether each path was found
 ArrayList<MultiPathState> multiPathStates;    // Parallel states for all paths
 boolean multiPathMode;                        // Whether in multi-path mode
 
-//----- UI Controls -----This part is KangFeng
+//----- UI Controls -----
 enum Tool { ADD_AGENT, ADD_GOAL, DRAW_OBSTACLE, DRAW_GRASS, DRAW_DESERT, MOVE_POINT }
 Tool currentTool;
 
@@ -78,7 +78,7 @@ boolean terrainDropdownExpanded;
 int terrainDropdownY;
 int terrainDropdownBtnH;
 
-// Color definitions------HuangJingfan exchange some color
+// Color definitions
 final color COLOR_GRASS = #228B22;
 final color COLOR_DESERT = #F4A460;
 final color COLOR_OBSTACLE = #c4c4c4ff;
@@ -213,7 +213,6 @@ class MultiPathState {
   }
 }
 
-//This part is KangFeng
 class UIButton {
   int x, y, w, h;
   String label;
@@ -329,7 +328,7 @@ class Slider {
   }
 }
 
-//----- Setup -----this part is KangFeng
+//----- Setup -----
 public void settings() { 
   size(1060, 870); 
 }
@@ -338,7 +337,7 @@ public void setup() {
   surface.setTitle("AI Pathfinding Arena");
   textFont(createFont("Arial", 14));
   
-  // the variable
+  // Initialize variables
   agents = new ArrayList();
   goals = new ArrayList();
   currentDragMode = DragMode.NONE;
@@ -372,14 +371,14 @@ public void setup() {
   popupStartTime = 0;
   popupType = 0;
   popupButtonClickTime = 0;
-comparePopupRecords = new HashMap<Algorithm, PathRecord>();
-resultShown = false;
+  comparePopupRecords = new HashMap<Algorithm, PathRecord>();
+  resultShown = false;
   
   updateLayout();
   grid = new int[gridRows][gridCols];
   resetGrid();
   
-  //the begin only set a agent and a goal
+  // Initially set one agent and one goal
   agents.add(new MapPoint(5, 5, 1));
   goals.add(new MapPoint(gridCols - 6, gridRows - 6, 1));
   createButtons();
@@ -447,6 +446,33 @@ ArrayList getGoalIdsAt(int x, int y) {
   }
   Collections.sort(ids);
   return ids;
+}
+
+// Returns the index of the path whose start or goal point is under the mouse cursor.
+// Returns -1 if no start/goal is hovered.
+int getHoveredPathIndex() {
+  if (mouseX < gridOffsetX || mouseX >= gridOffsetX + gridCols * CELL_SIZE ||
+      mouseY < gridOffsetY || mouseY >= gridOffsetY + gridRows * CELL_SIZE) {
+    return -1;
+  }
+  int cx = (mouseX - gridOffsetX) / CELL_SIZE;
+  int cy = (mouseY - gridOffsetY) / CELL_SIZE;
+  
+  // Check for start points at this grid cell
+  for (int i = 0; i < agents.size(); i++) {
+    MapPoint a = (MapPoint)agents.get(i);
+    if (a.x == cx && a.y == cy) {
+      return i;
+    }
+  }
+  // Check for goal points at this grid cell
+  for (int i = 0; i < goals.size(); i++) {
+    MapPoint g = (MapPoint)goals.get(i);
+    if (g.x == cx && g.y == cy) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 boolean canAnyStartReachAnyGoal() {
@@ -519,7 +545,7 @@ void showNoSolutionWithClearButton(String msg) {
 
 void showResultPopup(boolean success, String message, int visited, int pathLen, int cpu) {
   if (compareMode) {
-    // in order to keep this data on the comparison mode
+    // Save data for comparison mode
     if (success) {
       historyPaths.put(currentAlgo, new PathRecord(finalPath, visited, pathLen, cpu));
     }
@@ -534,7 +560,7 @@ void showResultPopup(boolean success, String message, int visited, int pathLen, 
     return;
   }
 
-  //this is off comparison mode
+  // Non-comparison mode
   String title = success ? "Path Found!" : "Search Failed";
   String stats = success ? "Visited: " + visited + "\nPath Length: " + pathLen + "\nCPU Cycles: " + cpu : message;
   popupMessage = title + "\n" + stats;
@@ -559,13 +585,13 @@ void showMultiPathResultPopup() {
 void drawPopup() {
   if (!popupVisible) return;
 
-//draw the comparison mode's popup include three algo
+// Comparison mode popup
 if (popupType == 2) {
     int w = 600;
     int h = 200;
     int cx = width/2;
     int cy = height/2;
-    //backgroud
+    // Background
     fill(0, 0, 0, 230);
     noStroke();
     rect(cx - w/2, cy - h/2, w, h, 15);
@@ -573,7 +599,7 @@ if (popupType == 2) {
     strokeWeight(2);
     noFill();
     rect(cx - w/2, cy - h/2, w, h, 15);
-    //draw the "X"
+    // Close button
     int closeSize = 20;
     int closeX = cx + w/2 - closeSize - 8;
     int closeY = cy - h/2 + 8;
@@ -588,13 +614,13 @@ if (popupType == 2) {
     line(closeX + 4, closeY + 4, closeX + closeSize - 4, closeY + closeSize - 4);
     line(closeX + closeSize - 4, closeY + 4, closeX + 4, closeY + closeSize - 4);
     
-    //title
+    // Title
     fill(255, 255, 200);
     textAlign(CENTER, CENTER);
     textSize(14);
     text("Algorithm Comparison", cx, cy - h/2 + 30);
     
-    //list the three algo
+    // List three algorithms
     Algorithm[] algos = {Algorithm.BFS, Algorithm.DIJKSTRA, Algorithm.ASTAR};
     String[] algoNames = {"BFS", "Dijkstra", "A*"};
     float colWidth = (w - 40) / 3.0;
@@ -620,7 +646,7 @@ if (popupType == 2) {
       }
     }
     
-    //OK button
+    // OK button
     int btnW = 60;
     int btnH = 25;
     int btnX = cx - btnW/2;
@@ -634,7 +660,7 @@ if (popupType == 2) {
     textSize(13);
     text("OK", btnX + btnW/2, btnY + btnH/2);
     
-    // the click deal
+    // Handle click
     if (mousePressed && millis() - popupButtonClickTime > 200) {
       if (hoverClose) {
         popupVisible = false;
@@ -742,7 +768,7 @@ if (popupType == 2) {
   } else {
   pushStyle();
 
-//the "off comparison mode"'s popup
+// Non-comparison mode popup
   int btnW = 100;
   int btnH = 28;
   int textSizeVal = 13;
@@ -776,7 +802,7 @@ if (popupType == 2) {
   noFill();
   rect(cx - w/2, cy - h/2, w, h, 15);
 
- //the"X"button
+ // Close button
   int closeSize = 20;
   int closeX = cx + w/2 - closeSize - 8;
   int closeY = cy - h/2 + 8;
@@ -800,7 +826,7 @@ if (popupType == 2) {
     text(lines[i], cx, textStartY + i * lineHeight);
   }
   
-  //Button
+  // Button
   int btnX = cx - btnW/2;
   int btnY = cy + h/2 - btnH - 10;
   
@@ -816,14 +842,14 @@ if (popupType == 2) {
   
  // Handle button click
   if (mousePressed && millis() - popupButtonClickTime > 200) {
-    //first,check the "X"buttono
+    // Check close button first
     if (hoverClose) {
       popupVisible = false;
       popupButtonClickTime = millis();
       popStyle();
       return;
     }
-    //Recheck the original buttons
+    // Check main button
     if (hover) {
       popupButtonClickTime = millis();
       if (popupType == 1 && popupButtonText.equals("Clear Obstacles")) {
@@ -939,11 +965,7 @@ public void draw() {
   
   if (running && !paused && !algorithmFinished) {
     long currentTime = millis();
-    // Calculate time interval per step: speed * 10 steps per second
-    // speed = 1: 20000 steps/sec (0.05ms interval)
-    // speed = 5: 100000 steps/sec (0.01ms interval)
-    // speed = 10: 200000 steps/sec (0.005ms interval)
-    // speed = 20: 400000 steps/sec (0.0025ms interval)
+    // Calculate time interval per step
     long stepInterval = (long)(100.0 / speed);
     
     // Only execute algorithm step if enough time has passed
@@ -975,7 +997,7 @@ public void draw() {
           }
         }
       } else {
-        // Single path mode (original behavior)
+        // Single path mode
         if (!algorithmStep()) {           
           algorithmFinished = true;
           running = false;
@@ -1013,7 +1035,7 @@ void drawArena() {
   
   drawSearchVisuals();
   
-  //Draw starts and goals
+  // Draw starts and goals grouping
   HashMap startGroups = new HashMap();
   HashMap goalGroups = new HashMap();
   
@@ -1030,7 +1052,7 @@ void drawArena() {
     ((ArrayList)goalGroups.get(key)).add(g);
   }
   
-  //draw the agent
+  // Draw agents (starts)
   Iterator startIt = startGroups.keySet().iterator();
   while (startIt.hasNext()) {
     String key = (String)startIt.next();
@@ -1060,7 +1082,7 @@ void drawArena() {
     }
   }
   
-  //draw the array of goal
+  // Draw goals
   Iterator goalIt = goalGroups.keySet().iterator();
   while (goalIt.hasNext()) {
     String key = (String)goalIt.next();
@@ -1098,28 +1120,56 @@ void drawSearchVisuals() {
   
   if (multiPathMode && multiPathStates != null) {
     // Multi-path mode: Draw search state for each path
-    // Path colors: green, magenta, orange, cyan
+    // Determine which path (if any) the mouse is hovering over
+    int hoveredPath = getHoveredPathIndex();
+    
+    // Alpha levels: bright for hovered path, dim for others
+    final int HOVER_ALPHA_EXPLORED = 180;
+    final int HOVER_ALPHA_FRONTIER = 200;
+    final int OTHER_ALPHA_EXPLORED = 40;   // set to 0 to hide other paths completely
+    final int OTHER_ALPHA_FRONTIER = 50;
+    
+    // Colors for up to 4 paths (green, magenta, orange, cyan)
     color[] exploredColors = {
-      color(0, 200, 0, 100), 
-      color(200, 0, 200, 100), 
-      color(200, 130, 0, 100), 
-      color(0, 200, 200, 100)
+      color(0, 200, 0, HOVER_ALPHA_EXPLORED),
+      color(200, 0, 200, HOVER_ALPHA_EXPLORED),
+      color(200, 130, 0, HOVER_ALPHA_EXPLORED),
+      color(0, 200, 200, HOVER_ALPHA_EXPLORED)
     };
     color[] frontierColors = {
-      color(0, 255, 0, 120), 
-      color(255, 0, 255, 120), 
-      color(255, 165, 0, 120), 
-      color(0, 255, 255, 120)
+      color(0, 255, 0, HOVER_ALPHA_FRONTIER),
+      color(255, 0, 255, HOVER_ALPHA_FRONTIER),
+      color(255, 165, 0, HOVER_ALPHA_FRONTIER),
+      color(0, 255, 255, HOVER_ALPHA_FRONTIER)
+    };
+    color[] exploredColorsOther = {
+      color(0, 200, 0, OTHER_ALPHA_EXPLORED),
+      color(200, 0, 200, OTHER_ALPHA_EXPLORED),
+      color(200, 130, 0, OTHER_ALPHA_EXPLORED),
+      color(0, 200, 200, OTHER_ALPHA_EXPLORED)
+    };
+    color[] frontierColorsOther = {
+      color(0, 255, 0, OTHER_ALPHA_FRONTIER),
+      color(255, 0, 255, OTHER_ALPHA_FRONTIER),
+      color(255, 165, 0, OTHER_ALPHA_FRONTIER),
+      color(0, 255, 255, OTHER_ALPHA_FRONTIER)
     };
     
     for (int pathIdx = 0; pathIdx < multiPathStates.size(); pathIdx++) {
       MultiPathState state = multiPathStates.get(pathIdx);
       if (state.finished) continue;
       
-      color exploredColor = exploredColors[pathIdx % exploredColors.length];
-      color frontierColor = frontierColors[pathIdx % frontierColors.length];
+      // Choose color set based on whether this path is the hovered one
+      color[] curExploredColors = (hoveredPath == pathIdx || hoveredPath == -1) ? exploredColors : exploredColorsOther;
+      color[] curFrontierColors = (hoveredPath == pathIdx || hoveredPath == -1) ? frontierColors : frontierColorsOther;
       
-      // Draw closed list (explored nodes)
+      color exploredColor = curExploredColors[pathIdx % curExploredColors.length];
+      color frontierColor = curFrontierColors[pathIdx % curFrontierColors.length];
+      
+      // Skip drawing if both alphas are zero (completely hidden)
+      if (alpha(exploredColor) == 0 && alpha(frontierColor) == 0) continue;
+      
+      // Draw closed list (already explored nodes)
       fill(exploredColor);
       for (int i = 0; i < state.closedList.size(); i++) {
         Node n = state.closedList.get(i);
@@ -1148,7 +1198,7 @@ void drawSearchVisuals() {
       }
     }
   } else {
-    // Single path mode (original behavior)
+    // Single path mode
     fill(COLOR_EXPLORED);
     for (int i = 0; i < closedList.size(); i++) {
       Node n = (Node) closedList.get(i);
@@ -1313,7 +1363,7 @@ void drawPanel() {
     ArrayList sIds = getStartIdsAt(mx, my);
     ArrayList gIds = getGoalIdsAt(mx, my);
   
-   //Display the terrain of the current cell
+    // Display terrain info
     text(info, width-10, height-10);
     popStyle();
   }
@@ -1361,23 +1411,23 @@ public void mousePressed() {
     int cy = (mouseY - gridOffsetY) / CELL_SIZE;
     if (pathFound) return;
     
-    if (currentTool == Tool.MOVE_POINT) {//this move bug is fixed by KangFeng
-  for (int i = agents.size() - 1; i >= 0; i--) {
-    MapPoint a = (MapPoint)agents.get(i);
-    if (a.x == cx && a.y == cy) {
-      currentDragMode = DragMode.MOVE_AGENT;
-      draggedPoint = a;
-      return;
-    }
-  }
-  for (int i = goals.size() - 1; i >= 0; i--) {
-    MapPoint g = (MapPoint)goals.get(i);
-    if (g.x == cx && g.y == cy) {
-      currentDragMode = DragMode.MOVE_GOAL;
-      draggedPoint = g;
-      return;
-    }
-  }
+    if (currentTool == Tool.MOVE_POINT) {
+      for (int i = agents.size() - 1; i >= 0; i--) {
+        MapPoint a = (MapPoint)agents.get(i);
+        if (a.x == cx && a.y == cy) {
+          currentDragMode = DragMode.MOVE_AGENT;
+          draggedPoint = a;
+          return;
+        }
+      }
+      for (int i = goals.size() - 1; i >= 0; i--) {
+        MapPoint g = (MapPoint)goals.get(i);
+        if (g.x == cx && g.y == cy) {
+          currentDragMode = DragMode.MOVE_GOAL;
+          draggedPoint = g;
+          return;
+        }
+      }
       
       if (grid[cy][cx] == OBSTACLE || grid[cy][cx] == GRASS || grid[cy][cx] == DESERT) {
         currentDragMode = DragMode.MOVE_TERRAIN;
@@ -1493,12 +1543,12 @@ public void mouseDragged() {
       int newX = (mouseX - gridOffsetX) / CELL_SIZE;
       int newY = (mouseY - gridOffsetY) / CELL_SIZE;
       
-      //check
+      // Check boundaries
       if (newX < 0 || newX >= gridCols || newY < 0 || newY >= gridRows) return;
       
       if (currentDragMode == DragMode.MOVE_AGENT) {
         MapPoint p = (MapPoint)draggedPoint;
-        //Cannot move onto obstacles, nor onto the grids with starting/ending points (unless moving oneself)
+        // Cannot move onto obstacles, nor onto the grids with starting/ending points (unless moving oneself)
         if (grid[newY][newX] == OBSTACLE) return;
         if ((hasStartAt(newX, newY) && !(p.x == newX && p.y == newY)) || 
             (hasGoalAt(newX, newY))) return;
@@ -1519,17 +1569,17 @@ public void mouseDragged() {
         int oldY = oldData[1];
         int terrainType = oldData[2];
         
-        //Cannot move onto the squares with starting or ending points.
+        // Cannot move onto squares with starting or ending points.
         if (hasStartAt(newX, newY) || hasGoalAt(newX, newY)) return;
-        //Cannot be moved to an existing non-empty terrain location (unless it is the same location)
+        // Cannot be moved to an existing non-empty terrain location (unless it is the same location)
         if ((grid[newY][newX] == OBSTACLE || grid[newY][newX] == GRASS || grid[newY][newX] == DESERT) && 
             !(newX == oldX && newY == oldY)) return;
         
-        //Remove the terrain at the original location
+        // Remove the terrain at the original location
         grid[oldY][oldX] = EMPTY;
-        //Place the terrain in the new location
+        // Place the terrain in the new location
         grid[newY][newX] = terrainType;
-        //Update the drag point to the new position
+        // Update the drag point to the new position
         draggedPoint = new int[]{newX, newY, terrainType};
         resetSearch();
       }
@@ -1658,14 +1708,14 @@ void handleButton(String id) {
     resetSearch();
     updateButtonLabels();
   } else if (id.equals("SPEED_UP")) {
-  speed = min(speed + 1, 20);
-  speedSlider.value = speed;
-  lastStepTime = millis();  // Effective immediately
-} else if (id.equals("SPEED_DOWN")) {
-  speed = max(speed - 1, 1);
-  speedSlider.value = speed;
-  lastStepTime = millis(); // Effective immediately
-}  else if (id.equals("TOOL_AGENT")) {
+    speed = min(speed + 1, 20);
+    speedSlider.value = speed;
+    lastStepTime = millis();  // Effective immediately
+  } else if (id.equals("SPEED_DOWN")) {
+    speed = max(speed - 1, 1);
+    speedSlider.value = speed;
+    lastStepTime = millis(); // Effective immediately
+  } else if (id.equals("TOOL_AGENT")) {
     currentTool = Tool.ADD_AGENT;
     updateButtonLabels();
   } else if (id.equals("TOOL_GOAL")) {
@@ -1681,8 +1731,8 @@ void handleButton(String id) {
       currentTool = Tool.DRAW_DESERT;
     } else if (currentTool == Tool.DRAW_DESERT) {
       currentTool = Tool.DRAW_OBSTACLE;
-    }else {
-        currentTool = Tool.DRAW_OBSTACLE;
+    } else {
+      currentTool = Tool.DRAW_OBSTACLE;
     }
     updateButtonLabels();
   } else if (id.equals("RUN_START")) {
@@ -1769,6 +1819,7 @@ void handleButton(String id) {
       
       // Show warning if auto-adjusted
       if (warningMsg != null) {
+        // Removed from original code, but you can add showWarningPopup(warningMsg); here
       }
     } else {
       if (agents.isEmpty()) {
@@ -1805,12 +1856,12 @@ void handleButton(String id) {
       running = false;
     }
   } else if (id.equals("RUN_RESET")) {
-   for (int r = 0; r < gridRows; r++) {
-        for (int c = 0; c < gridCols; c++) {
-            if (grid[r][c] == OBSTACLE || grid[r][c] == GRASS || grid[r][c] == DESERT) {
-                grid[r][c] = EMPTY;
-            }
+    for (int r = 0; r < gridRows; r++) {
+      for (int c = 0; c < gridCols; c++) {
+        if (grid[r][c] == OBSTACLE || grid[r][c] == GRASS || grid[r][c] == DESERT) {
+          grid[r][c] = EMPTY;
         }
+      }
     }
     resetSearch();
     running = false;
@@ -1905,7 +1956,7 @@ void initAStar() {
   }
 
   startNode.g = 0;
-  dist[startNode.y][startNode.x] = 0;  // 也要加
+  dist[startNode.y][startNode.x] = 0;
   startNode.h = heuristic(startNode, goalNode);
   aStarQueue.add(startNode);
   openList.add(startNode);
@@ -2237,7 +2288,7 @@ boolean stepAStar() {
     neighbor.h = heuristic(neighbor, goalNode);
     neighbor.parent = current;
 
-    //Only join when the cost of the new path is lower
+    // Only add when the new path cost is lower
     if (newG < dist[ny][nx]) {
       dist[ny][nx] = newG;
       aStarQueue.add(neighbor);
@@ -2257,7 +2308,7 @@ void reconstructPath(Node goal) {
   }
   Collections.reverse(finalPath);
 
-  // Calculation of weighted path length
+  // Calculate weighted path length
   pathLength = 0;
   for (int i = 0; i < finalPath.size() - 1; i++) {
     Node node = finalPath.get(i);
