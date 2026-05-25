@@ -16,7 +16,7 @@ final int GRASS = 4;
 final int DESERT = 5;
 int[][] grid;
 
-//Terrain weight map
+//Terrain weight map(Zheng Xueyao fixed the no-weightmap problem)
 final int WEIGHT_NORMAL = 1;
 final int WEIGHT_DESERT = 3;
 final int WEIGHT_GRASS = 6;
@@ -52,7 +52,7 @@ int cpuCycles;
 boolean pathFound;
 boolean algorithmFinished;
 
-// BFS specific
+// BFS specific (Zheng Xueyao completed BFS implementation)
 ArrayDeque bfsQueue;
 boolean[][] visited;
 // Dijkstra specific
@@ -61,7 +61,7 @@ int[][] dist;
 // A* specific
 PriorityQueue aStarQueue;
 
-// Multi-path mode - multiple start-end pairs (parallel)
+// Multi-path mode - multiple start-end pairs (parallel) (Zheng Xueyao completed the multiPathMode)
 ArrayList<ArrayList<Node>> allFinalPaths;      // Store all paths
 ArrayList<Integer> allVisitedCounts;          // Visited count for each path
 ArrayList<Integer> allPathLengths;            // Length of each path
@@ -1472,6 +1472,7 @@ public void mousePressed() {
         resetSearch();
       }
     } else if (currentTool == Tool.DRAW_OBSTACLE) {
+      //Multiple obstacles with different weight(Zheng Xueyao added)
       if (mouseButton == LEFT) {
         if (!hasStartAt(cx, cy) && !hasGoalAt(cx, cy)) {
           grid[cy][cx] = OBSTACLE;
@@ -2076,6 +2077,7 @@ boolean stepMultiDijkstra(MultiPathState state) {
   return true;
 }
 
+// The fuction of multiPathMode (developed by Zheng Xueyao)
 boolean stepMultiAStar(MultiPathState state) {
   if (state.aStarQueue == null || state.aStarQueue.isEmpty()) {
     state.finished = true;
@@ -2252,6 +2254,7 @@ boolean stepDijkstra() {
   return true;
 }
 
+// (Zheng Xueyao fixed the empty problem of A*)
 boolean stepAStar() {
   if (aStarQueue == null || aStarQueue.isEmpty()) {
     algorithmFinished = true;
