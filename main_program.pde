@@ -1,4 +1,4 @@
-import java.util.*;
+        import java.util.*;
 import java.util.PriorityQueue;
 
 //-----Grid Settings-----
@@ -27,7 +27,7 @@ ArrayList goals;
 
 //For drag-to-move tool - Supports moving start and end points, all terrain types
 enum DragMode { NONE, MOVE_AGENT, MOVE_GOAL, MOVE_TERRAIN }
-DragMode currentDragMode;
+DragMode currentDragMode; // ⭐ Current drag mode / 
 Object draggedPoint; // is MapPoint or int[] {x, y, terrainType}
 
 // ----- Algorithm Related -----
@@ -78,30 +78,30 @@ boolean terrainDropdownExpanded;
 int terrainDropdownY;
 int terrainDropdownBtnH;
 
-// Color definitions
-final color COLOR_GRASS = #228B22;
-final color COLOR_DESERT = #F4A460;
-final color COLOR_OBSTACLE = #c4c4c4ff;
-final color COLOR_EMPTY = #1E1E32;
-final color COLOR_START = #00C8FF;
-final color COLOR_GOAL = #FF6432;
-final color COLOR_START_MULTI = #4DD0FF;
-final color COLOR_GOAL_MULTI = #FF8A5C;
-final color COLOR_BTN_HOVER = #FF6464;
-final color COLOR_BTN_NORMAL = #503C8C;
-final color COLOR_BTN_TEXT_BG = #FFFFC8;
-final color COLOR_BTN_STROKE = #C8B4FF;
-final color COLOR_PANEL_BG = #19192DDC;
-final color COLOR_PANEL_TEXT = #C8C8FF;
-final color COLOR_STATS_LABEL = #B4B4DC;
-final color COLOR_STATS_VALUE = #DCDCFF;
-final color COLOR_HOVER_TEXT = #64C8FF;
-final color COLOR_EXPLORED = #C864FF64;
-final color COLOR_FRONTIER = #FF963C78;
-final color COLOR_SLIDER_BG = #323246;
-final color COLOR_SLIDER_FILL = #00C8C8;
-final color COLOR_SLIDER_HANDLE = #FFFF64;
-final color COLOR_SLIDER_LABEL = #B4B4FF;
+// Color definitions(by Jingfan Huang) 
+final color COLOR_GRASS = #228B22;     // Grass terrain color - Forest Green / 
+final color COLOR_DESERT = #F4A460; // Desert terrain color - Sandy Brown /
+final color COLOR_OBSTACLE = #c4c4c4ff;  // Obstacle color - Light Gray with full opacity / 
+final color COLOR_EMPTY = #1E1E32; // Empty cell color - Dark Blue Gray / 
+final color COLOR_START = #00C8FF;// Single start point color - Cyan /
+final color COLOR_GOAL = #FF6432; // Single goal point color - Orange Red /
+final color COLOR_START_MULTI = #4DD0FF;//Multiple starts same cell - Light Cyan /
+final color COLOR_GOAL_MULTI = #FF8A5C;// Multiple goals same cell - Light Orange /
+final color COLOR_BTN_HOVER = #FF6464;// Button hover color - Bright Red /
+final color COLOR_BTN_NORMAL = #503C8C;// Button normal color - Purple Gray / 
+final color COLOR_BTN_TEXT_BG = #FFFFC8;// Button text color - Cream Yellow 
+final color COLOR_BTN_STROKE = #C8B4FF;// Button border color - Lavender /
+final color COLOR_PANEL_BG = #19192DDC;// Panel background - Semi-transparent Deep Purple (DC=220 alpha) /
+final color COLOR_PANEL_TEXT = #C8C8FF; // Panel title text - Lavender /
+final color COLOR_STATS_LABEL = #B4B4DC; // Statistics label color - Light Purple /
+final color COLOR_STATS_VALUE = #DCDCFF; // Statistics value color - Very Light Purple /
+final color COLOR_HOVER_TEXT = #64C8FF; // Mouse hover text color - Light Cyan / 
+final color COLOR_EXPLORED = #C864FF64; // Explored nodes color - Purple with transparency (64=100 alpha) / 
+final color COLOR_FRONTIER = #FF963C78; // Frontier nodes color - Orange with transparency (78=120 alpha) /
+final color COLOR_SLIDER_BG = #323246;// Slider background color - Dark Purple Gray /
+final color COLOR_SLIDER_FILL = #00C8C8;  // Slider fill color - Cyan / 
+final color COLOR_SLIDER_HANDLE = #FFFF64;// Slider handle color - Bright Yellow /
+final color COLOR_SLIDER_LABEL = #B4B4FF;  // Slider label color - Light Purple / 
 
 int panelX;
 int panelWidth;
@@ -119,13 +119,13 @@ HashMap<Algorithm, PathRecord> comparePopupRecords;
 boolean resultShown = false;
 HashMap historyPaths;
 
-//Popup
-String popupMessage;
-String popupButtonText;
-boolean popupVisible;
-int popupStartTime;
-int popupType;
-int popupButtonClickTime;
+//Popup ⭐ (by Jingfan Huang)
+String popupMessage; // ⭐ Popup message content / 
+String popupButtonText; // ⭐ Popup button text / 
+boolean popupVisible; // ⭐ Whether popup is visible /
+int popupStartTime;// ⭐ Popup start time /
+int popupType; // ⭐ Popup type: 0=normal,1=clear obstacles,2=compare,3=multi-path
+int popupButtonClickTime; // ⭐ Last button click time (prevents double-click) /
 
 //-----Inner Classes-----
 class MapPoint {
@@ -234,11 +234,11 @@ class UIButton {
   }
   
   void draw() {
-    hovered = isOver(mouseX, mouseY);
-    fill(hovered ? COLOR_BTN_HOVER : COLOR_BTN_NORMAL);
-    stroke(COLOR_BTN_STROKE);
+    hovered = isOver(mouseX, mouseY);  // ⭐ Button colors / 
+    fill(hovered ? COLOR_BTN_HOVER : COLOR_BTN_NORMAL);// ⭐ Hover: bright red, normal: purple gray / 
+    stroke(COLOR_BTN_STROKE);   // ⭐ Border: lavender / 
     rect(x, y, w, h, 5);
-    fill(COLOR_BTN_TEXT_BG);
+    fill(COLOR_BTN_TEXT_BG);  // ⭐ Text: cream yellow / 
     textAlign(CENTER, CENTER);
     textSize(12);
     text(label, x + w / 2, y + h / 2);
@@ -295,18 +295,18 @@ class Slider {
     this.dragging = false;
   }
   
-  void draw() {
-    fill(COLOR_SLIDER_BG);
+  void draw() { // ⭐ Slider colors /(by Jingfan Huang)
+    fill(COLOR_SLIDER_BG);  // ⭐ Background: dark purple gray /
     stroke(100, 100, 150);
     rect(x, y, w, h, 5);
     float fillW = map(value, minVal, maxVal, 0, w);
-    fill(COLOR_SLIDER_FILL);
+    fill(COLOR_SLIDER_FILL); // ⭐ Fill: cyan / 
     noStroke();
     rect(x, y, fillW, h, 5);
     float handleX = x + fillW;
-    fill(COLOR_SLIDER_HANDLE);
+    fill(COLOR_SLIDER_HANDLE);  // ⭐ Handle: bright yellow /
     ellipse(handleX, y + h/2, 10, 10);
-    fill(COLOR_SLIDER_LABEL);
+    fill(COLOR_SLIDER_LABEL);  // ⭐ Label: light purple /
     textAlign(LEFT, CENTER);
     textSize(12);
     text(label + ": " + (int)value, x, y + h + 8);
@@ -506,43 +506,43 @@ boolean canAnyStartReachAnyGoal() {
   return false;
 }
 
-boolean isStartBlocked() {
+boolean isStartBlocked() {// ⭐ Check if Start is Blocked 
   if (agents.isEmpty()) { 
     showWarningPopup("Missing Start Point!\nPlease use Agent tool to add a start point.");
-    return true; 
+    return true;  // ⭐ Show warning popup / 
   }
   if (goals.isEmpty()) { 
     showWarningPopup("Missing Goal Point!\nPlease use Goal tool to add a goal point.");
-    return true; 
+    return true;  // ⭐ Show warning popup / 
   }
   if (!canAnyStartReachAnyGoal()) {
     showNoSolutionWithClearButton("Cannot reach goal!\nObstacles block all paths.\nClear all obstacles?");
-    return true;
+    return true;// ⭐ Show no-solution popup with clear button /
   }
   return false;
 }
 
 void showWarningPopup(String msg) {
-  popupMessage = msg;
-  popupButtonText = "OK";
-  popupVisible = true;
-  popupStartTime = millis();
-  popupType = 0;
-  popupButtonClickTime = 0;
-  resultShown = true;
+  popupMessage = msg; // ⭐ Set message / 
+  popupButtonText = "OK"; // ⭐ Set button text / 
+  popupVisible = true; // ⭐ Show popup / 
+  popupStartTime = millis();   // ⭐ Record start time / 
+  popupType = 0;  // ⭐ Type 0: normal popup /
+  popupButtonClickTime = 0;   // ⭐ Reset click time / 
+  resultShown = true;    // ⭐ Mark result shown /
 }
 
 void showNoSolutionWithClearButton(String msg) {
-  popupMessage = msg;
-  popupButtonText = "Clear Obstacles";
-  popupVisible = true;
-  popupStartTime = millis();
-  popupType = 1;
+  popupMessage = msg;// ⭐ Set message / 
+  popupButtonText = "Clear Obstacles"; // ⭐ Set clear button text / 
+  popupVisible = true;   // ⭐ Show popup / 
+  popupStartTime = millis();    // ⭐ Record start time /
+  popupType = 1;   // ⭐ Type 1: clear obstacles popup / 
   noSolutionMsg = msg;
   msgStartTime = millis();
   resultShown = true;
 }
-
+// ⭐ Show result popup (with visited cells, path length, CPU cycles) / 
 void showResultPopup(boolean success, String message, int visited, int pathLen, int cpu) {
   if (compareMode) {
     // Save data for comparison mode
@@ -1021,12 +1021,12 @@ void drawArena() {
   for (int r = 0; r < gridRows; r++) {
     for (int c = 0; c < gridCols; c++) {
       int x = c * CELL_SIZE;
-      int y = r * CELL_SIZE;
+      int y = r * CELL_SIZE;   // ⭐ Terrain colors / 
       switch (grid[r][c]) {
-        case OBSTACLE: fill(COLOR_OBSTACLE); break;
-        case GRASS: fill(COLOR_GRASS); break;
-        case DESERT: fill(COLOR_DESERT); break;
-        default: fill(COLOR_EMPTY);
+        case OBSTACLE: fill(COLOR_OBSTACLE); break;// ⭐ Obstacle: light gray / 
+        case GRASS: fill(COLOR_GRASS); break;    // ⭐ Grass: forest green / 
+        case DESERT: fill(COLOR_DESERT); break;  // ⭐ Desert: sandy brown / 
+        default: fill(COLOR_EMPTY);     // ⭐ Empty: dark blue gray / 
       }
       stroke(70, 70, 90);
       rect(x, y, CELL_SIZE, CELL_SIZE);
@@ -1063,12 +1063,12 @@ void drawArena() {
     float x = cx * CELL_SIZE + CELL_SIZE/2;
     float y = cy * CELL_SIZE + CELL_SIZE/2;
     int count = group.size();
-    MapPoint first = (MapPoint)group.get(0);
+    MapPoint first = (MapPoint)group.get(0);// ⭐ Start color: single vs multiple / 
     color startColor = (count == 1 && first.id == 1) ? COLOR_START : COLOR_START_MULTI;
     fill(startColor);
     ellipse(x, y, CELL_SIZE * 0.8, CELL_SIZE * 0.8);
-    fill(255);
-    textSize(count > 2 ? 7 : 9);
+    fill(255);  // ⭐ Font size: smaller for more than 2 starts / 
+    textSize(count > 2 ? 7 : 9);   // ⭐ Label format: "S1" for single, "S12" for multiple / 
     textAlign(CENTER, CENTER);
     if (count == 1) {
       text("S" + first.id, x, y);
@@ -1131,16 +1131,16 @@ void drawSearchVisuals() {
     
     // Colors for up to 4 paths (green, magenta, orange, cyan)
     color[] exploredColors = {
-      color(0, 200, 0, HOVER_ALPHA_EXPLORED),
-      color(200, 0, 200, HOVER_ALPHA_EXPLORED),
-      color(200, 130, 0, HOVER_ALPHA_EXPLORED),
-      color(0, 200, 200, HOVER_ALPHA_EXPLORED)
+      color(0, 200, 0, HOVER_ALPHA_EXPLORED),// ⭐ Path 1: green /
+      color(200, 0, 200, HOVER_ALPHA_EXPLORED),// ⭐ Path 2: magenta /
+      color(200, 130, 0, HOVER_ALPHA_EXPLORED),// ⭐ Path 3: orange / 
+      color(0, 200, 200, HOVER_ALPHA_EXPLORED)// ⭐ Path 4: cyan / 
     };
     color[] frontierColors = {
-      color(0, 255, 0, HOVER_ALPHA_FRONTIER),
-      color(255, 0, 255, HOVER_ALPHA_FRONTIER),
-      color(255, 165, 0, HOVER_ALPHA_FRONTIER),
-      color(0, 255, 255, HOVER_ALPHA_FRONTIER)
+      color(0, 255, 0, HOVER_ALPHA_FRONTIER),  // ⭐ Path 1: bright green /
+      color(255, 0, 255, HOVER_ALPHA_FRONTIER), // ⭐ Path 2: bright magenta / 
+      color(255, 165, 0, HOVER_ALPHA_FRONTIER), // ⭐ Path 3: bright orange / 
+      color(0, 255, 255, HOVER_ALPHA_FRONTIER)// ⭐ Path 4: bright cyan /
     };
     color[] exploredColorsOther = {
       color(0, 200, 0, OTHER_ALPHA_EXPLORED),
