@@ -40,7 +40,7 @@ int speed;//move speed
 Slider speedSlider;//slider to control the speed
 boolean running;//check the speed
 long lastStepTime;  // Track last algorithm step time for speed control
-boolean paused; check paused
+boolean paused; //check paused
 
 // Search process data
 ArrayList openList;        //List of frontier nodes
