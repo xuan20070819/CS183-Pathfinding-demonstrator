@@ -1,29 +1,31 @@
-        import java.util.*;
-import java.util.PriorityQueue;
+import java.util.*;        //Import all utility
+import java.util.PriorityQueue;        //Import PriorityQueue for Dijkstra and A*
 
 //-----Grid Settings-----
-int gridCols = 23;
-int gridRows = 23;
-final int CELL_SIZE = 20;
-int gridOffsetX, gridOffsetY;
+int gridCols=23;        //Number of grid columns
+int gridRows=23;        //Number of grid rows
+final int CELL_SIZE=20;//Size of each grid
+int gridOffsetX, gridOffsetY;//op-left corner of the grid on screen
 
 //Grid cell states
-final int EMPTY = 0;
-final int OBSTACLE = 1;
-final int START = 2;
-final int GOAL = 3;
-final int GRASS = 4;
-final int DESERT = 5;
-int[][] grid;
+final int EMPTY=0;        //Empty
+final int OBSTACLE=1;        //Obstacle
+final int START=2;        //Start point
+final int GOAL=3;        //Goal point
+
+//add this after pathfinding2.0
+final int GRASS=4;        //Grass
+final int DESERT=5;        //Desert
+int[][] grid;        //representing the grid
 
 //Terrain weight map(Zheng Xueyao fixed the no-weightmap problem)
-final int WEIGHT_NORMAL = 1;
-final int WEIGHT_DESERT = 3;
-final int WEIGHT_GRASS = 6;
+final int WEIGHT_NORMAL = 1;//Movement cost for empty
+final int WEIGHT_DESERT = 3;//Movement cost for desert
+final int WEIGHT_GRASS = 6;//Movement cost for grass
 
 // Multi-agent support
-ArrayList agents;
-ArrayList goals;
+ArrayList agents;//List of start points
+ArrayList goals;//List of goal points
 
 //For drag-to-move tool - Supports moving start and end points, all terrain types
 enum DragMode { NONE, MOVE_AGENT, MOVE_GOAL, MOVE_TERRAIN }
@@ -31,26 +33,26 @@ DragMode currentDragMode; // ⭐ Current drag mode /
 Object draggedPoint; // is MapPoint or int[] {x, y, terrainType}
 
 // ----- Algorithm Related -----
-enum Algorithm { BFS, DIJKSTRA, ASTAR }
+enum Algorithm { BFS, DIJKSTRA, ASTAR }//list our algorithms
 Algorithm currentAlgo;
 
-int speed;
-Slider speedSlider;
-boolean running;
+int speed;//move speed
+Slider speedSlider;//slider to control the speed
+boolean running;//check the speed
 long lastStepTime;  // Track last algorithm step time for speed control
-boolean paused;
+boolean paused; check paused
 
 // Search process data
-ArrayList openList;
-ArrayList closedList;
-ArrayList<Node> finalPath;
-Node startNode;
-Node goalNode;
-int visitedCount;
-int pathLength;
-int cpuCycles;
-boolean pathFound;
-boolean algorithmFinished;
+ArrayList openList;        //List of frontier nodes
+ArrayList closedList;        //List of already visited nodes
+ArrayList<Node> finalPath;        //find the final path
+Node startNode;        //Single start node (used in single‑path mode) 
+Node goalNode;        //Single goal node
+int visitedCount;        //Number of nodes expanded
+int pathLength;        //Weighted length of final path
+int cpuCycles;        //Number of steps taken by the algorithm
+boolean pathFound;        //check whether a path was found
+boolean algorithmFinished;        //check whether the search has finished
 
 // BFS specific (Zheng Xueyao completed BFS implementation)
 ArrayDeque bfsQueue;
@@ -103,21 +105,21 @@ final color COLOR_SLIDER_FILL = #00C8C8;  // Slider fill color - Cyan /
 final color COLOR_SLIDER_HANDLE = #FFFF64;// Slider handle color - Bright Yellow /
 final color COLOR_SLIDER_LABEL = #B4B4FF;  // Slider label color - Light Purple / 
 
-int panelX;
-int panelWidth;
-ArrayList buttons;
+int panelX;        //X coordinate of the control panel
+int panelWidth;        //Width of control pane
+ArrayList buttons;        //List of UIButton objects
 
-String noSolutionMsg;
-int msgStartTime;
+String noSolutionMsg;        //Message when no solution is found
+int msgStartTime;        //Time when the message started showing
 
-Slider gridColsSlider;
-Slider gridRowsSlider;
+Slider gridColsSlider;        //Slider to change number of columns
+Slider gridRowsSlider;        //Slider to change number of rows
 
 //Comparison mode
-boolean compareMode;
-HashMap<Algorithm, PathRecord> comparePopupRecords;
-boolean resultShown = false;
-HashMap historyPaths;
+boolean compareMode;        //Whether comparison mode is active
+HashMap<Algorithm, PathRecord> comparePopupRecords;        //Records for comparison popup
+boolean resultShown = false;        //Whether result popup has been shown 
+HashMap historyPaths;        //History of paths for different algorithms
 
 //Popup ⭐ (by Jingfan Huang)
 String popupMessage; // ⭐ Popup message content / 
@@ -128,7 +130,7 @@ int popupType; // ⭐ Popup type: 0=normal,1=clear obstacles,2=compare,3=multi-p
 int popupButtonClickTime; // ⭐ Last button click time (prevents double-click) /
 
 //-----Inner Classes-----
-class MapPoint {
+class MapPoint {        //Represents a start or goal point with an ID
   int x, y, id;
   MapPoint(int x, int y, int id) {
     this.x = x;
@@ -137,64 +139,65 @@ class MapPoint {
   }
 }
 
-class PathRecord {
-  ArrayList path;
-  int visitedCount;
-  int pathLength;
-  int cpuCycles;
+class PathRecord {        //Stores path data for comparison mode
+  ArrayList path;        //List of nodes in the path
+  int visitedCount;        //Number of nodes visited 
+  int pathLength;        //Weighted path length
+  int cpuCycles;        //CPU cycles used 
   PathRecord(ArrayList p, int v, int pl, int cpu) {
-    path = new ArrayList();
+    path = new ArrayList();        //Create new list
     for (int i = 0; i < p.size(); i++) {
       Node n = (Node)p.get(i);
       path.add(new Node(n.x, n.y));
     }
-    visitedCount = v;
-    pathLength = pl;
-    cpuCycles = cpu;
+    visitedCount = v;        //Set visited count
+    pathLength = pl;        //Set path length
+    cpuCycles = cpu;        //Set CPU cycles
   }
 }
 
 // Multi-path mode - each path has its own state
 class MultiPathState {
-  int index;
-  Node startNode;
-  Node goalNode;
-  boolean pathFound;
-  boolean finished;
-  ArrayList<Node> finalPath;
-  ArrayList<Node> openList;
-  ArrayList<Node> closedList;
-  int visitedCount;
-  int pathLength;
-  int cpuCycles;
-  boolean[][] visited;
+  int index;        //Index of this path
+  Node startNode;        //Start node
+  Node goalNode;        //Goal node
+  boolean pathFound;        //Whether path found
+  boolean finished;        //Whether search finished 
+  ArrayList<Node> finalPath;        //Final path for this pair
+  ArrayList<Node> openList;        //Open list
+  ArrayList<Node> closedList;        //Closed list
+  int visitedCount;        //Number of visited nodes
+  int pathLength;        //Weighted path length
+  int cpuCycles;        //CPU cycles used
+  boolean[][] visited;        //Visited flags
   // BFS specific
   Queue<Node> bfsQueue;
   // Dijkstra specific
   PriorityQueue<Node> dijkstraQueue;
-  int[][] distDijkstra;
+  int[][] distDijkstra;        //Distance array for Dijkstra
   // A* specific
-  PriorityQueue<Node> aStarQueue;
-  int[][] distAStar;
+  PriorityQueue<Node> aStarQueue;        //A* priority queue
+  int[][] distAStar;        //Distance array for A*
   
   MultiPathState(int idx, Node start, Node goal, int cols, int rows) {
-    index = idx;
-    startNode = start;
-    goalNode = goal;
-    pathFound = false;
-    finished = false;
-    finalPath = new ArrayList<Node>();
-    openList = new ArrayList<Node>();
-    closedList = new ArrayList<Node>();
+    index = idx;        //Set index 
+    startNode = start;        //Set start
+    goalNode = goal;        //Set goal
+    pathFound = false;        //Initially not found
+    finished = false;        //Not finished
+    finalPath = new ArrayList<Node>();        //Empty final path
+    openList = new ArrayList<Node>();        //Empty open list
+    closedList = new ArrayList<Node>();        //Empty closed list
+   //Initialize 
     visitedCount = 0;
     pathLength = 0;
     cpuCycles = 0;
-    visited = new boolean[rows][cols];
-    for (int i = 0; i < rows; i++) {
-      Arrays.fill(visited[i], false);
+    visited = new boolean[rows][cols];        //Create visited array
+    for (int i = 0; i < rows; i++) {        //Iterate rows
+      Arrays.fill(visited[i], false);        //Fill with false
     }
-    bfsQueue = new LinkedList<Node>();
-    dijkstraQueue = new PriorityQueue<Node>(11, new Comparator<Node>() {
+    bfsQueue = new LinkedList<Node>();        //Create BFS queue
+    dijkstraQueue = new PriorityQueue<Node>(11, new Comparator<Node>() {        //Create Dijkstra priority queue with comparator
       public int compare(Node a, Node b) {
         return a.g - b.g;
       }
