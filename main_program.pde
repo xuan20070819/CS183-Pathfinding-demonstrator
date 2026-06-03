@@ -216,6 +216,7 @@ class MultiPathState {
   }
 }
 
+//（by Kang Feng  219-238）
 class UIButton {
   int x, y, w, h;
   String label;
@@ -280,6 +281,7 @@ class Node implements Comparable {
   }
 }
 
+//(by Kang Feng 284-301)
 class Slider {
   int x, y, w, h;
   float minVal, maxVal, value;
@@ -907,6 +909,7 @@ void resizeGrid(int newCols, int newRows) {
   clearHistoryPaths();
 }
 
+//(by Kang Feng)
 void createButtons() {
   buttons.clear();
   int yBase = 60;
@@ -933,7 +936,7 @@ void createButtons() {
   gridColsSlider = new Slider(x, yBase + 660, btnW, 15, 10, 35, gridCols, "Cols");
   gridRowsSlider = new Slider(x, yBase + 690, btnW, 15, 10, 35, gridRows, "Rows");
 }
-
+//by KangFeng
 void updateButtonLabels() {
   for (int i = 0; i < buttons.size(); i++) {
     UIButton b = (UIButton)buttons.get(i);
@@ -958,13 +961,14 @@ void updateButtonLabels() {
   }
 }
 
-//----- Drawing -----
+//----- Drawing ---by Kang Feng ------draw the surface
 public void draw() {
   background(20, 20, 40);
-  drawArena();
-  drawInstructions();
-  drawPanel();
-  drawPopup();
+//invoking these function
+  drawArena();  //draw grid and space
+  drawInstructions();  //the operation of hint
+  drawPanel();      //the control space in right side has all button
+  drawPopup();      //the pop (version2 add it)
   
   if (running && !paused && !algorithmFinished) {
     long currentTime = millis();
@@ -1016,6 +1020,8 @@ public void draw() {
     }
   }
 }
+
+// y KangFeng to the frame and Jingfan to adjust color that draw the grid and space
 void drawArena() {
   pushMatrix();
   translate(gridOffsetX, gridOffsetY);
@@ -1306,6 +1312,7 @@ color getAlgoColor(Algorithm algo, int alpha) {
   else return color(#FFEB3B, alpha);
 }
 
+//by Kang Feng
 void drawInstructions() {
 int y = height - 80;
   int xLeft = gridOffsetX;
@@ -1318,6 +1325,7 @@ int y = height - 80;
   text("Obstacle/Grass/Desert: Left-click to draw, Right-click to erase", xLeft, y+54);
 }
 
+//by Kang Feng------the right side
 void drawPanel() {
   fill(25, 25, 45, 220);
   noStroke();
@@ -1372,7 +1380,7 @@ void drawPanel() {
   }
 }
 
-// ----- Mouse Interaction -----
+// ----- Mouse Interaction --by angFeng
 public void mousePressed() {
   boolean isSearching = (running && !paused && !algorithmFinished);
   boolean isButtonClick = false;
