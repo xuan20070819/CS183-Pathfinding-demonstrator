@@ -216,7 +216,7 @@ class MultiPathState {
   }
 }
 
-//（by Kang Feng  219-238）
+//（by Kang Feng  219-238，a constructor to check the mouse）
 class UIButton {
   int x, y, w, h;
   String label;
@@ -281,12 +281,12 @@ class Node implements Comparable {
   }
 }
 
-//(by Kang Feng 284-301)
+//(by Kang Feng 284-301---a contructor to set the slider)
 class Slider {
-  int x, y, w, h;
-  float minVal, maxVal, value;
-  boolean dragging;
-  String label;
+  int x, y, w, h;  //Slider position and dimensions
+  float minVal, maxVal, value;  // Min, max, and current value
+  boolean dragging;  // Whether the handle is being dragged
+  String label;    //// Label displayed next to slider
   
   Slider(int x, int y, int w, int h, float minVal, float maxVal, float initVal, String label) {
     this.x = x;
@@ -295,11 +295,12 @@ class Slider {
     this.h = h;
     this.minVal = minVal;
     this.maxVal = maxVal;
-    this.value = constrain(initVal, minVal, maxVal);
+    this.value = constrain(initVal, minVal, maxVal);//// Clamp initial value
     this.label = label;
     this.dragging = false;
   }
-  
+
+// Draw slider (background, fill bar, handle, label)
   void draw() { // ⭐ Slider colors /(by Jingfan Huang)
     fill(COLOR_SLIDER_BG);  // ⭐ Background: dark purple gray /
     stroke(100, 100, 150);
@@ -316,17 +317,20 @@ class Slider {
     textSize(12);
     text(label + ": " + (int)value, x, y + h + 8);
   }
-  
+
+// Check if mouse is over the handle
   boolean overHandle(int mx, int my) {
     float fillW = map(value, minVal, maxVal, 0, w);
     float handleX = x + fillW;
     return dist(mx, my, handleX, y + h/2) < 10;
   }
-  
+
+// Check if mouse is over slider area (with extended hot zone)
   boolean overSlider(int mx, int my) {
     return mx >= x && mx <= x + w && my >= y - 5 && my <= y + h + 5;
   }
-  
+
+// Update slider value based on mouse X position
   void setFromMouse(int mx) {
     value = map(constrain(mx, x, x + w), x, x + w, minVal, maxVal);
     value = constrain(value, minVal, maxVal);
@@ -335,53 +339,60 @@ class Slider {
 
 //----- Setup -----
 public void settings() { 
-  size(1060, 870); 
+  size(1060, 870); //// Set window width to 1060px, height to 870px
 }
 
 public void setup() {
-  surface.setTitle("AI Pathfinding Arena");
-  textFont(createFont("Arial", 14));
+  surface.setTitle("AI Pathfinding Arena"); // Set window title
+  textFont(createFont("Arial", 14));// Set default font to Arial size 14
   
   // Initialize variables
-  agents = new ArrayList();
-  goals = new ArrayList();
-  currentDragMode = DragMode.NONE;
-  draggedPoint = null;
+  agents = new ArrayList(); // List of start points (agents)
+  goals = new ArrayList(); // List of goal points
+  currentDragMode = DragMode.NONE;// Current drag mode: none
+  draggedPoint = null;// The point being dragged (start/goal/terrain)
+
   currentAlgo = Algorithm.BFS;
-  speed = 1;
-  running = false;
-  paused = false;
-  openList = new ArrayList();
-  closedList = new ArrayList();
-  finalPath = new ArrayList();
-  startNode = null;
-  goalNode = null;
-  visitedCount = 0;
-  pathLength = 0;
-  cpuCycles = 0;
-  pathFound = false;
-  algorithmFinished = false;
-  currentTool = Tool.DRAW_OBSTACLE;
-  terrainDropdownExpanded = false;
-  terrainDropdownY = 0;
-  terrainDropdownBtnH = 30;
-  buttons = new ArrayList();
-  noSolutionMsg = "";
-  msgStartTime = 0;
-  compareMode = false;
-  historyPaths = new HashMap();
-  popupMessage = "";
-  popupButtonText = "";
-  popupVisible = false;
-  popupStartTime = 0;
-  popupType = 0;
-  popupButtonClickTime = 0;
+
+  speed = 1;      // Animation speed (steps per second)
+  running = false;      // Whether the algorithm is running automatically
+  paused = false ;      // Whether paused
+  openList = new ArrayList();    // Open list (frontier nodes)
+  closedList = new ArrayList();    Closed list (visited nodes)
+  finalPath = new ArrayList();    // Final found path
+  startNode = null;      // Start node (single-path mode)
+  goalNode = null;      // Goal node (single-path mode)
+  visitedCount = 0;    // Count of visited nodes
+  pathLength = 0;    // Weighted path length
+  cpuCycles = 0;    // CPU cycles (algorithm steps)
+  pathFound = false;    // Whether a path was found
+  algorithmFinished = false;    // Whether the search has finished
+
+  currentTool = Tool.DRAW_OBSTACLE;    // Current tool: draw obstacle
+  terrainDropdownExpanded = false;    // Whether terrain dropdown is expanded
+  terrainDropdownY = 0;              // Terrain dropdown Y coordinate
+  terrainDropdownBtnH = 30;        // Terrain dropdown button height
+  buttons = new ArrayList();      // List of UI buttons
+  noSolutionMsg = "";          // Message shown when no solution
+  msgStartTime = 0;            // Time when the message started displaying
+  compareMode = false;        // Whether comparison mode is active
+  historyPaths = new HashMap();        // History of paths (stored by algorithm)
+
+//pop
+  popupMessage = "";    // Popup message content
+  popupButtonText = "";    // Popup button text
+  popupVisible = false;    // Whether popup is visible
+  popupStartTime = 0;    // Time when popup started showing
+  popupType = 0;        // Popup type (0=normal,1=clear obstacles,2=compare,3=multi-path)
+  popupButtonClickTime = 0;// Last time popup button was clicked (prevents double-click)
+
+
   comparePopupRecords = new HashMap<Algorithm, PathRecord>();
   resultShown = false;
   
-  updateLayout();
-  grid = new int[gridRows][gridCols];
-  resetGrid();
+  updateLayout();// Update UI layout (grid offset, panel position, etc.)
+  grid = new int[gridRows][gridCols// Create 2D array for grid data
+  resetGrid();// Initialize all cells to EMPTY
   
   // Initially set one agent and one goal
   agents.add(new MapPoint(5, 5, 1));
