@@ -358,7 +358,7 @@ public void setup() {
   running = false;      // Whether the algorithm is running automatically
   paused = false ;      // Whether paused
   openList = new ArrayList();    // Open list (frontier nodes)
-  closedList = new ArrayList();    Closed list (visited nodes)
+  closedList = new ArrayList();   // Closed list (visited nodes)
   finalPath = new ArrayList();    // Final found path
   startNode = null;      // Start node (single-path mode)
   goalNode = null;      // Goal node (single-path mode)
@@ -391,7 +391,7 @@ public void setup() {
   resultShown = false;
   
   updateLayout();// Update UI layout (grid offset, panel position, etc.)
-  grid = new int[gridRows][gridCols// Create 2D array for grid data
+  grid = new int[gridRows][gridCols];// Create 2D array for grid data
   resetGrid();// Initialize all cells to EMPTY
   
   // Initially set one agent and one goal
