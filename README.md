@@ -53,7 +53,8 @@ The project includes weighted terrain (normal/grass/desert) and multi-agent path
 
 ## Source Code
 Full project source code (including Version 1 and Version 2) is available on GitHub:  
-[https://github.com/你的用户名/你的仓库名](https://github.com/你的用户名/你的仓库名)
+[Click to visit Version 1](https://github.com/xuan20070819/CS183-Pathfinding-demonstrator/blob/main/main_program_1.pde)
+[Click to visit Version 2](https://github.com/xuan20070819/CS183-Pathfinding-demonstrator/blob/main/main_program_2.pde)
 
 ---
 
